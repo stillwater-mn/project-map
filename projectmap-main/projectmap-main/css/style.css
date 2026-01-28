@@ -1,0 +1,591 @@
+/* style.css */
+
+/* --------------------- Global --------------------- */
+html, body, #map {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font: 10pt "Helvetica Neue", Arial, Helvetica, sans-serif;
+}
+
+body { margin: 0; padding: 0; }
+
+/* Optional placeholder text styling */
+.lorem {
+  font-style: italic;
+  text-align: justify;
+  color: #AAA;
+}
+/* tool tip */
+
+.project-hover-tooltip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+
+  font-weight: 800;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: none;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+
+  pointer-events: none;
+  display: none; /* hidden until hover */
+}
+
+
+/* --------------------- Sidebar Image Grid --------------------- */
+.image-link-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.image-link-grid .ui-block-a,
+.image-link-grid .ui-block-b {
+  height: 150px;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+/* Overlay bar with text */
+.image-link-grid .ui-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 16px;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+/* Hover overlay color */
+.image-link-grid .ui-block-a:hover .ui-bar,
+.image-link-grid .ui-block-b:hover .ui-bar {
+  background: rgba(204, 68, 41, 0.65);
+}
+
+/* --------------------- Background images for tiles --------------------- */
+.welcome-pane-all { background: url('../images/All_projects.jpg') center/cover no-repeat; }
+.welcome-pane-engineering { background: url('../images/engineering.jpg') center/cover no-repeat; }
+.welcome-pane-parks { background: url('../images/parks.jpg') center/cover no-repeat; }
+.welcome-pane-planning { background: url('../images/planning.jpg') center/cover no-repeat; }
+
+/* --------------------- Sidebar links --------------------- */
+.sidebar-pane-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* --------------------- Responsive adjustments --------------------- */
+@media (max-width: 600px) {
+  .image-link-grid { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* --------------------- Leaflet Sidebar Adjustments --------------------- */
+/* Hide all tabs except home (robust, not order-dependent) */
+.leaflet-sidebar-tabs li:not(.tab-home) { display: none !important; }
+
+/* Make pane-body relative so absolute positioning works */
+.leaflet-sidebar-pane .pane-body {
+  position: relative;
+  padding-top: 8px;
+}
+
+/* --------------------- Back Button --------------------- */
+.sidebar-back-button {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  text-decoration: none;
+  font-weight: bold;
+
+  font-size: clamp(14px, 1.2vw, 18px);
+  padding: clamp(5px, 0.8vw, 10px) clamp(8px, 1.2vw, 14px);
+
+  border-radius: 0.5rem;
+  background-color: #cc4529;
+  color: #fff !important;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.sidebar-back-button:hover {
+  background-color: #b03b23;
+  color: #fff;
+}
+
+/* --------------------- Scrollable Pane Body --------------------- */
+.leaflet-sidebar-pane .pane-body {
+  overflow-y: auto;
+  max-height: calc(100% - 60px);
+  padding-right: 0.5rem;
+  padding-top: 5rem; /* leaves room for Back button */
+}
+
+/* --------------------- Project Table Styling --------------------- */
+.project-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.project-table th,
+.project-table td {
+  padding: 10px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-size: 1rem;
+}
+
+.project-table th {
+  background-color: #9AAE5F;
+  color: white;
+  font-weight: bold;
+}
+
+/* Default tables: clickable rows (hover) */
+.project-table tr:hover {
+  background-color: #e0e0e0;
+  cursor: pointer;
+}
+
+.project-table tr.selected {
+  background-color: #036e30;
+  color: #fff;
+}
+
+/* ✅ Project Info table: NOT clickable, no hover styling */
+#table-projectInfo tr:hover {
+  background-color: transparent;
+  cursor: default;
+}
+
+/* also prevent selected styling from accidentally applying */
+#table-projectInfo tr.selected {
+  background-color: transparent;
+  color: inherit;
+}
+
+/* --------------------- Attachments (ONE featured image) --------------------- */
+.project-attachments { margin-top: 0.25rem; }
+
+.attachments-header {
+  font-weight: 800;
+  font-size: 1rem;
+  margin: 0.5rem 0;
+}
+
+.attachments-loading,
+.attachments-empty,
+.attachments-error {
+  padding: 0.75rem;
+  border: 1px dashed #bbb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.attachments-featured {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+
+.attachment-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: none;
+  cursor: pointer;
+}
+
+.attachment-card:hover { transform: none; }
+
+/* ---- Blurred letterbox thumbnail frame ---- */
+.attachment-thumbwrap {
+  position: relative;
+  overflow: hidden;
+  background: #ccc;
+}
+
+/* blurred background layer (uses CSS variable set inline) */
+.attachment-thumbwrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--thumb-bg);
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px);
+  transform: scale(1.15);
+  opacity: 0.7;
+}
+
+/* ✅ Hover overlay text (instead of bounce) */
+.attachment-thumbwrap::after {
+  content: "Click to view";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.2px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+
+.attachment-card:hover .attachment-thumbwrap::after,
+.attachment-card:focus-visible .attachment-thumbwrap::after {
+  opacity: 1;
+}
+
+/* Foreground image: show FULL image (no crop) */
+.attachment-thumb {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 120px;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  background: transparent;
+}
+
+.attachment-thumb--featured {
+  height: 160px;
+}
+
+/* Badge overlay: (1/x) */
+.attachment-count-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3; /* above overlay */
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.attachment-meta,
+.attachment-file { padding: 8px 10px; }
+
+.attachment-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-type {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+/* --------------------- Attachment Modal (Slideshow) --------------------- */
+.attachment-modal.hidden { display: none; }
+
+.attachment-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.attachment-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+
+.attachment-modal__panel {
+  position: relative;
+  width: min(920px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  margin: 12px auto;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+.attachment-modal__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 28px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 10px;
+  z-index: 2;
+}
+
+.attachment-modal__close:hover { background: rgba(0,0,0,0.06); }
+
+/* Title row with counter */
+.attachment-modal__titleRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 48px 10px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.attachment-modal__title {
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-modal__counter {
+  font-weight: 700;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.attachment-modal__content {
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.attachment-modal__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #f6f6f6;
+}
+
+.attachment-modal__filebox {
+  border: 1px solid #e2e2e2;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.attachment-modal__filename {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.attachment-modal__filetype {
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+.attachment-modal__hint {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+/* Prev/Next buttons */
+.attachment-modal__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.92);
+  cursor: pointer;
+  display: none; /* enabled by JS when gallery > 1 */
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+  user-select: none;
+  z-index: 2;
+}
+
+.attachment-modal__nav:hover { background: #fff; }
+
+.attachment-modal__prev { left: 10px; }
+.attachment-modal__next { right: 10px; }
+
+.attachment-modal__actions {
+  padding: 12px 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.attachment-modal__open {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+.attachment-modal__open:hover { background: #f4f4f4; }
+
+
+/* --------------------- Splash Screen --------------------- */
+.splash.hidden {
+  display: none;
+}
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.splash__panel {
+  position: relative;
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+
+
+  z-index: 1;
+}
+
+.splash__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 28px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.splash__close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.splash__header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 52px 12px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.splash__logo {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+}
+
+.splash__title {
+  font-weight: 900;
+  font-size: clamp(18px, 2vw, 26px);
+}
+
+.splash__content {
+  padding: 14px 16px 16px 16px;
+  overflow-y: auto;
+}
+
+.splash__videoWrap {
+  border: 1px solid #e6e6e6;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+}
+
+.splash__video,
+.splash__iframe {
+  width: 100%;
+  height: min(52vh, 420px);
+  display: block;
+  background: #000;
+}
+
+.splash__disclaimer {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f8f8;
+  border: 1px solid #eee;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.splash__actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.splash__btn {
+  border: 1px solid #ddd;
+  background: #cc4529;
+  color: #fff;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.splash__btn:hover {
+  filter: brightness(0.95);
+}
