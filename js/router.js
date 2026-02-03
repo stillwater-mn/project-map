@@ -3,6 +3,12 @@
 // - Pane routes: #home, #pane-xyz
 // - Project routes: #project-123
 // Adds: fit-to-boundary on #home with sidebar offset on wide screens.
+//
+// Performance updates:
+// - Do NOT filter clustered points layer on project route (no setWhere OBJECTID=...)
+// - Start flying immediately (no waiting on cluster unwrap / marker creation)
+// - Refine position when marker becomes available (tiny pan), and unwrap clusters in background
+// - Keep cancellation token to prevent stale async work from applying
 
 import {
   projectsLayer,
@@ -12,7 +18,6 @@ import {
 } from './layers.js';
 
 import {
-  showOnlyProject,
   highlightFeature,
   flyToFeature,
   showRelatedFeatures,
@@ -66,10 +71,6 @@ function getPaneById(cfg, id) {
 /* -----------------------------
    Boundary fit on #home
 ----------------------------- */
-function nextFrame() {
-  return new Promise((r) => requestAnimationFrame(() => r()));
-}
-
 async function fitHomeToBoundary(map) {
   try {
     if (jurisdictionBoundaryReady) {
@@ -83,8 +84,8 @@ async function fitHomeToBoundary(map) {
   if (!boundary || !boundary.getBounds) return;
 
   // Allow sidebar animation + DOM layout to settle
-  await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => requestAnimationFrame(r));
+  await new Promise((r) => requestAnimationFrame(r));
+  await new Promise((r) => requestAnimationFrame(r));
 
   const bounds = boundary.getBounds();
   if (!bounds?.isValid?.()) return;
@@ -92,6 +93,13 @@ async function fitHomeToBoundary(map) {
   const sidebarEl = document.getElementById('sidebar');
   const sidebarWidth = sidebarEl ? sidebarEl.getBoundingClientRect().width : 0;
   const buffer = 180;
+
+  const flyOpts = {
+    padding: [20, 20],
+    duration: 1.2,
+    easeLinearity: 0.12,
+    noMoveStart: true
+  };
 
   if (window.innerWidth > 1100 && sidebarWidth > 0) {
     const mapWidth = map.getSize().x;
@@ -106,19 +114,9 @@ async function fitHomeToBoundary(map) {
       L.latLng(ne.lat, ne.lng - lngShift)
     );
 
-    map.flyToBounds(adjustedBounds, {
-      padding: [20, 20],
-      duration: 1.4,
-      easeLinearity: 0.1,
-      noMoveStart: true
-    });
+    map.flyToBounds(adjustedBounds, flyOpts);
   } else {
-    map.flyToBounds(bounds, {
-      padding: [20, 20],
-      duration: 1.4,
-      easeLinearity: 0.1,
-      noMoveStart: true
-    });
+    map.flyToBounds(bounds, flyOpts);
   }
 }
 
@@ -139,30 +137,33 @@ function getObjectIdFromEsriClick(e) {
 }
 
 /**
- * Wait for a marker to exist in markerLookup (deep links can load before markers are created)
+ * Wait for a marker to exist in markerLookup (deep links can load before markers are created).
+ * Uses createfeature/load listeners + polling, with short timeout (since we no longer block fly-to on it).
  */
-function waitForMarker(objectId, timeoutMs = 3500) {
+function waitForMarker(objectId, timeoutMs = 1200) {
+  const id = Number(objectId);
+
   return new Promise((resolve) => {
-    const existing = markerLookup[objectId];
+    const existing = markerLookup[id];
     if (existing) return resolve(existing);
 
     const start = Date.now();
 
     const onCreate = () => {
-      const lyr = markerLookup[objectId];
+      const lyr = markerLookup[id];
       if (lyr) cleanup(lyr);
     };
 
     const onLoad = () => {
-      const lyr = markerLookup[objectId];
+      const lyr = markerLookup[id];
       if (lyr) cleanup(lyr);
     };
 
     const tick = () => {
-      const lyr = markerLookup[objectId];
+      const lyr = markerLookup[id];
       if (lyr) return cleanup(lyr);
       if (Date.now() - start > timeoutMs) return cleanup(null);
-      setTimeout(tick, 90);
+      setTimeout(tick, 70);
     };
 
     const cleanup = (result) => {
@@ -180,6 +181,40 @@ function waitForMarker(objectId, timeoutMs = 3500) {
 
     tick();
   });
+}
+
+/**
+ * Fast marker navigation:
+ * - Fly immediately to marker latlng (no waiting)
+ * - If cluster group exists, unwrap in background then micro-pan to final latlng
+ */
+function flyToMarkerFast(map, marker, zoom = 18) {
+  if (!map || !marker || typeof marker.getLatLng !== 'function') return;
+
+  const ll = marker.getLatLng();
+
+  // If already mostly in view, pan is fastest
+  try {
+    if (map.getBounds().pad(-0.2).contains(ll)) {
+      map.panTo(ll, { animate: true, duration: 0.22 });
+    } else {
+      map.flyTo(ll, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+    }
+  } catch {
+    map.flyTo(ll, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+  }
+
+  // Unwrap clusters in background (do not await)
+  const clusterGroup =
+    projectsLayer?._cluster || projectsLayer?._clusters || projectsLayer?._markerCluster;
+
+  if (clusterGroup && typeof clusterGroup.zoomToShowLayer === 'function') {
+    clusterGroup.zoomToShowLayer(marker, () => {
+      try {
+        map.panTo(marker.getLatLng(), { animate: true, duration: 0.2 });
+      } catch {}
+    });
+  }
 }
 
 /* -----------------------------
@@ -273,46 +308,64 @@ async function handleProjectHash(map, sidebar, cfg) {
   sidebar.open(detailPane.id);
   setBackButtonTarget(detailPane);
 
-  // Attachments (optional)
+  // Attachments (async)
   startDetailAttachments(detailPane, objectId);
 
-  // Isolate this project (points)
-  showOnlyProject(objectId);
+  // IMPORTANT: do NOT filter the clustered points layer here.
+  // Filtering causes a server refresh + recluster and delays marker availability.
 
-  // Populate ASAP from REST fetch (works before cluster marker exists)
+  // Start waiting for marker immediately (but we will not await it)
+  const markerPromise = waitForMarker(objectId);
+
+  // Optimistic: if marker already exists, fly now (instant)
+  const existingMarker = markerLookup[objectId];
+  if (existingMarker) {
+    flyToMarkerFast(map, existingMarker);
+  }
+
+  // Fetch attributes/geometry (used for table + fallback flyTo + related geometry)
+  let featNow = null;
   try {
     const fields = Array.isArray(detailPane?.detail?.fields)
       ? detailPane.detail.fields.map((f) => f.key).filter(Boolean)
       : [];
 
-    const featNow = await fetchProjectById(objectId, fields);
+    featNow = await fetchProjectById(objectId, fields);
     if (myToken !== projectRouteToken) return;
 
     if (featNow) {
       fillDetailTableFromFeature(detailPane, featNow);
-
       highlightFeature(featNow);
-      flyToFeature(map, featNow);
+
+      // If we haven't flown yet (no marker), fly immediately via geometry
+      if (!existingMarker) {
+        flyToFeature(map, featNow);
+      }
 
       const pn = featNow?.properties?.project_name;
       if (pn) showRelatedFeatures(pn, map, { fit: true });
     }
-  } catch (_) {}
+  } catch {
+    // ignore
+  }
 
-  // Then sync to marker feature when it’s ready (authoritative for clusters)
-  const marker = await waitForMarker(objectId);
-  if (myToken !== projectRouteToken) return;
+  // Refine when marker becomes available (do not block)
+  markerPromise.then((marker) => {
+    if (myToken !== projectRouteToken) return;
+    if (!marker) return;
 
-  const feature = marker?.feature;
-  if (!feature) return;
+    flyToMarkerFast(map, marker);
 
-  fillDetailTableFromFeature(detailPane, feature);
+    // If marker has authoritative feature props, refresh table (once)
+    if (marker.feature) {
+      fillDetailTableFromFeature(detailPane, marker.feature);
+      highlightFeature(marker.feature);
+    }
 
-  highlightFeature(feature);
-  flyToFeature(map, feature);
-
-  const pn = feature?.properties?.project_name;
-  if (pn) showRelatedFeatures(pn, map, { fit: true });
+    const feature = marker.feature || featNow;
+    const pn = feature?.properties?.project_name;
+    if (pn) showRelatedFeatures(pn, map, { fit: true });
+  });
 }
 
 function handlePaneHash(map, sidebar, paneId, cfg) {
@@ -391,21 +444,19 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
 
     // If already on this project, hashchange won't fire — refresh manually
     if (current === next) {
+      // bump token so any in-flight route work cancels
+      projectRouteToken++;
+
       const detailPane = getDetailPane(cfg);
       if (!detailPane) return;
 
       sidebar.open(detailPane.id);
       setBackButtonTarget(detailPane);
-
       startDetailAttachments(detailPane, objectId);
 
-      const fields = Array.isArray(detailPane?.detail?.fields)
-        ? detailPane.detail.fields.map((f) => f.key).filter(Boolean)
-        : [];
-
-      fetchProjectById(objectId, fields)
-        .then((feat) => feat && fillDetailTableFromFeature(detailPane, feat))
-        .catch(() => {});
+      // Maintain canonical hash and run handler explicitly
+      window.location.hash = next;
+      handleProjectHash(map, sidebar, cfg).catch(() => {});
       return;
     }
 
@@ -421,7 +472,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     }
 
     if (isProjectHash(h)) {
-      handleProjectHash(map, sidebar, cfg);
+      handleProjectHash(map, sidebar, cfg).catch(() => {});
       return;
     }
 
