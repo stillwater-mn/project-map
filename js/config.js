@@ -16,7 +16,8 @@ export const SERVICES = Object.freeze({
 export const MAP_CONFIG = Object.freeze({
   center: [45.0566, -92.8085],
   zoom: 12,
-  scrollWheelZoom: true
+  scrollWheelZoom: true,
+  zoomControl: false
 });
 
 export const BASEMAPS = Object.freeze({
@@ -75,6 +76,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
