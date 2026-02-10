@@ -591,3 +591,34 @@ body { margin: 0; padding: 0; }
   filter: brightness(0.95);
 }
 
+/* Disable hover effects on touch devices*/
+
+@media (max-width: 991px) {
+
+  .project-hover-tooltip {
+    display: none !important;
+  }
+
+  .image-link-grid .ui-block-a:hover .ui-bar,
+  .image-link-grid .ui-block-b:hover .ui-bar {
+    background: rgba(0, 0, 0, 0.5); 
+  }
+
+  .project-table tr:hover {
+    background-color: transparent !important;
+    cursor: default !important;
+  }
+  .attachment-card:hover .attachment-thumbwrap::after,
+  .attachment-card:focus-visible .attachment-thumbwrap::after {
+    opacity: 0 !important;
+  }
+
+  .attachment-card:hover {
+    transform: none !important;
+  }
+  .sidebar-back-button:hover {
+    background-color: #cc4529 !important;
+  }
+
+}
+
