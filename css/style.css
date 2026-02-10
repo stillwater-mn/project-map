@@ -6,6 +6,7 @@ html, body, #map {
   margin: 0;
   padding: 0;
   font: 10pt "Helvetica Neue", Arial, Helvetica, sans-serif;
+  overscroll-behavior: none;
 }
 
 body { margin: 0; padding: 0; }
@@ -589,3 +590,4 @@ body { margin: 0; padding: 0; }
 .splash__btn:hover {
   filter: brightness(0.95);
 }
+
