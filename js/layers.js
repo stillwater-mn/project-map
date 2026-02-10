@@ -1,5 +1,4 @@
 // js/layers.js
-// Creates and exports Leaflet/Esri layers used across the app.
 // - Basemaps
 // - Clustered projects points layer + marker lookup
 // - Related geometry layers (lines/polygons) with styles from config
@@ -38,6 +37,14 @@ projectsLayer.on('createfeature', function (e) {
 
   if (objId != null && e?.layer) {
     markerLookup[Number(objId)] = e.layer;
+
+    // apply highlight if this marker was recreated by clustering
+    const hid = Number(window.__highlightedObjectId);
+    if (Number.isFinite(hid) && hid === Number(objId) && typeof e.layer.setIcon === 'function') {
+      try {
+        e.layer.setIcon(window.__projectSelectedIcon || e.layer.options?.icon);
+      } catch {}
+    }
   }
 });
 
