@@ -12,7 +12,7 @@ L.Control.Sidebar = L.Control.extend({
 
     bottomsheetMaxWidth: 991,
     bottomsheetPeekRatio: 0.22, 
-    bottomsheetMidRatio: 0.40,
+    bottomsheetMidRatio: 0.50,
     bottomsheetFullRatio: 1.0, 
     bottomsheetTopGapPx: 0      
   },
