@@ -62,6 +62,36 @@ function showTableMessage(tbody, message) {
    Generic renderers
 ----------------------------- */
 
+/**
+ * Render a cell value as HTML:
+ * - URLs => "View Link" button
+ * - Everything else => escaped text
+ */
+function cellHTML(value) {
+  if (value == null) return '';
+
+  const s = String(value).trim();
+  if (!s) return '';
+
+  // URL -> "View Link" button
+  if (/^https?:\/\//i.test(s)) {
+    const safeHref = escapeHtml(s);
+    return `
+      <a
+        class="project-link-btn"
+        href="${safeHref}"
+        target="_blank"
+        rel="noopener noreferrer"
+        onclick="event.stopPropagation()"
+      >
+        View Link
+      </a>
+    `;
+  }
+
+  return escapeHtml(s);
+}
+
 function renderListRows(tbody, features, columns) {
   if (!tbody) return;
   tbody.innerHTML = '';
@@ -78,8 +108,7 @@ function renderListRows(tbody, features, columns) {
     tr.innerHTML = columns
       .map((c) => {
         const raw = props?.[c.key];
-        const text = raw == null ? '' : String(raw);
-        return `<td>${escapeHtml(text)}</td>`;
+        return `<td>${cellHTML(raw)}</td>`;
       })
       .join('');
 
@@ -121,8 +150,8 @@ function renderDetailTableFromFeature(tbody, feature, fields) {
 
 /**
  * Open a detail route instantly from list click:
- * - open detail pane 
- * - start attachments 
+ * - open detail pane
+ * - start attachments
  * - fill detail from cache if possible
  * - then set hash so router is canonical
  */
@@ -177,12 +206,14 @@ function wireListClickDelegation({
   tbody._wired = true;
 
   tbody.addEventListener('click', (e) => {
+    // If user clicked a link/button inside the row, do NOT route
+    if (e.target?.closest?.('a')) return;
+
     const tr = e.target?.closest?.('tr[data-objectid]');
     if (!tr) return;
 
     const objectId = Number(tr.dataset.objectid);
     if (!Number.isFinite(objectId)) return;
-
 
     const route = typeof rowRoute === 'function' ? rowRoute({ OBJECTID: objectId }) : null;
 
@@ -191,7 +222,6 @@ function wireListClickDelegation({
       return;
     }
 
-   
     if (route) window.location.hash = `#${route}`;
   });
 }
