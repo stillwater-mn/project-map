@@ -64,7 +64,8 @@ export const GEOMETRY_STYLES = Object.freeze({
 export const PROJECT_INFO_FIELDS = Object.freeze([
   { key: 'project_name', label: 'Project Name' },
   { key: 'project_type', label: 'Project Type' },
-  { key: 'more_information', label: 'More Information' }
+  { key: 'more_information', label: 'More Information' },
+  { key: 'lead_agency', label: 'Lead Agency' }
 ]);
 
 export const BOUNDARY = Object.freeze({
@@ -76,6 +77,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
