@@ -11,6 +11,12 @@ import {
 import { MAP_CONFIG, BASEMAPS, BOUNDARY } from './config.js';
 import { initHoverTooltip, wireHoverTooltipToProjectsLayer } from './utils.js';
 
+function getBasemapControlPosition() {
+  // Phone + tablet (<= 991px): top right
+  // Desktop: keep your current bottom left
+  return window.matchMedia('(max-width: 991px)').matches ? 'topright' : 'bottomleft';
+}
+
 export function createMap(mapId) {
   const map = L.map(mapId, {
     center: MAP_CONFIG.center,
@@ -19,31 +25,38 @@ export function createMap(mapId) {
     layers: [cartoLayer]
   });
 
-  // Tooltip system (kept from your current setup)
   initHoverTooltip(map);
   wireHoverTooltipToProjectsLayer();
 
-  // Primary layers
   cartoLayer.addTo(map);
   projectsLayer.addTo(map);
 
-  // Related geometry layers (hidden until needed)
   linesLayer.addTo(map).setWhere('1=0');
   polygonsLayer.addTo(map).setWhere('1=0');
 
-  // Boundary (no fitting here — router will fit when #home is active)
   loadJurisdictionBoundary(BOUNDARY.url, BOUNDARY.style)
     .then((boundaryLayer) => boundaryLayer.addTo(map))
     .catch((err) => console.error('Failed to load jurisdiction boundary GeoJSON:', err));
 
-  // Basemap switcher
-  L.basemapControl({
-    position: 'bottomleft',
+  // Basemap switcher (responsive position)
+  const basemapCtrl = L.basemapControl({
+    position: getBasemapControlPosition(),
     layers: [
       { layer: cartoLayer, name: BASEMAPS.carto.label },
       { layer: satelliteLayer, name: BASEMAPS.satellite.label }
     ]
   }).addTo(map);
+
+  // Keep position in sync on resize/orientation change
+  const repositionBasemap = () => {
+    const pos = getBasemapControlPosition();
+    if (basemapCtrl && basemapCtrl.options && basemapCtrl.options.position !== pos) {
+      basemapCtrl.setPosition(pos);
+    }
+  };
+
+  window.addEventListener('resize', repositionBasemap, { passive: true });
+  window.addEventListener('orientationchange', repositionBasemap, { passive: true });
 
   return map;
 }
