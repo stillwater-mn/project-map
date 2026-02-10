@@ -22,6 +22,7 @@ export function createMap(mapId) {
     center: MAP_CONFIG.center,
     zoom: MAP_CONFIG.zoom,
     scrollWheelZoom: MAP_CONFIG.scrollWheelZoom,
+    zoomControl: MAP_CONFIG.zoomControl,
     layers: [cartoLayer]
   });
 
@@ -60,3 +61,4 @@ export function createMap(mapId) {
 
   return map;
 }
+
