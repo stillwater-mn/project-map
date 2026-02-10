@@ -5,33 +5,99 @@ import { fetchProjectAttachments as fetchAttachmentsFromService } from './servic
 
 let currentHighlight = null;
 
-// cancel stale async geometry loads / bounds fits
 let relatedRequestToken = 0;
-
-// cancel stale async attachment loads
 let _attachmentsRequestToken = 0;
 
-// ---- Gallery state (images only) ----
 let _gallery = [];
 let _galleryIndex = 0;
 let _galleryObjectId = '';
 
-/* -----------------------------------
-   Small helpers
------------------------------------ */
+let _highlightedMarker = null;
+let _highlightedObjectId = null;
+
+let _hoverTooltipEl = null;
+
+// makeSelectedIcon
+function makeSelectedIcon() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42" aria-hidden="true">
+      <path d="M15 41.5c-.4 0-.8-.2-1.1-.6C11.5 37.8 3 26.6 3 17.2 3 9.1 8.9 2.5 15 2.5s12 6.6 12 14.7c0 9.4-8.5 20.6-10.9 23.7-.3.4-.7.6-1.1.6z"
+            fill="#e11d48" stroke="#7f1d1d" stroke-width="1.5"/>
+      <circle cx="15" cy="17" r="6.2" fill="#ffffff" stroke="#7f1d1d" stroke-width="1.5"/>
+    </svg>
+  `;
+
+  return L.divIcon({
+    className: 'project-marker-selected',
+    html: svg.trim(),
+    iconSize: [30, 42],
+    iconAnchor: [15, 42],
+    popupAnchor: [0, -36]
+  });
+}
+
+const defaultBlueIcon = new L.Icon.Default();
+const selectedRedIcon = makeSelectedIcon();
+
+// expose icons for layers.js (no import cycle)
+window.__projectSelectedIcon = selectedRedIcon;
+window.__projectDefaultIcon = defaultBlueIcon;
+
+// isImageContentType
 function isImageContentType(ct) {
   return typeof ct === 'string' && ct.startsWith('image/');
 }
 
+// firstNonEmpty
 function firstNonEmpty(arr) {
   return Array.isArray(arr) ? arr.find(Boolean) : null;
 }
 
-/* -----------------------------------
-   Fixed Top-Right Hover Tooltip (DOM)
------------------------------------ */
-let _hoverTooltipEl = null;
+// isLeafletMarker
+function isLeafletMarker(layer) {
+  return !!layer && typeof layer.getLatLng === 'function' && typeof layer.setIcon === 'function';
+}
 
+// applyIconState
+function applyIconState(layer, makeSelected) {
+  if (!isLeafletMarker(layer)) return;
+
+  try {
+    layer.setIcon(makeSelected ? selectedRedIcon : defaultBlueIcon);
+  } catch {}
+}
+
+// setHighlightedMarkerById
+function setHighlightedMarkerById(objectId) {
+  const id = Number(objectId);
+  if (!Number.isFinite(id)) return;
+
+  _highlightedObjectId = id;
+  window.__highlightedObjectId = String(id);
+
+  const marker = markerLookup[id];
+  if (!marker) return;
+
+  if (_highlightedMarker && _highlightedMarker !== marker) {
+    applyIconState(_highlightedMarker, false);
+  }
+
+  applyIconState(marker, true);
+  _highlightedMarker = marker;
+}
+
+// clearHighlightedMarker
+function clearHighlightedMarker() {
+  _highlightedObjectId = null;
+  window.__highlightedObjectId = '';
+
+  if (_highlightedMarker) {
+    applyIconState(_highlightedMarker, false);
+  }
+  _highlightedMarker = null;
+}
+
+// initHoverTooltip
 export function initHoverTooltip(map, { top = 12, right = 12 } = {}) {
   if (!map) return null;
 
@@ -48,6 +114,7 @@ export function initHoverTooltip(map, { top = 12, right = 12 } = {}) {
   return _hoverTooltipEl;
 }
 
+// setHoverTooltip
 export function setHoverTooltip(text) {
   if (!_hoverTooltipEl) return;
   const t = String(text ?? '').trim();
@@ -55,11 +122,13 @@ export function setHoverTooltip(text) {
   _hoverTooltipEl.style.display = t ? 'block' : 'none';
 }
 
+// hideHoverTooltip
 export function hideHoverTooltip() {
   if (!_hoverTooltipEl) return;
   _hoverTooltipEl.style.display = 'none';
 }
 
+// wireHoverTooltipToProjectsLayer
 export function wireHoverTooltipToProjectsLayer({
   format = (name) => `Click to view: ${name}`,
   fallbackName = 'Project'
@@ -86,15 +155,12 @@ export function wireHoverTooltipToProjectsLayer({
   } catch {}
 }
 
-/* -----------------------------------
-   Map + Feature Helpers
------------------------------------ */
+// flyToFeature
 export async function flyToFeature(map, feature, zoom = 18) {
   if (!map || !feature) return;
 
   const objectId = feature?.properties?.OBJECTID;
 
-  // Prefer marker if we have it (best for clusters)
   if (objectId != null) {
     const marker = markerLookup[objectId];
 
@@ -118,7 +184,6 @@ export async function flyToFeature(map, feature, zoom = 18) {
     }
   }
 
-  // Fallback: use geometry if no marker available
   const geom = feature.geometry;
   if (!geom) return;
 
@@ -142,11 +207,16 @@ export async function flyToFeature(map, feature, zoom = 18) {
   }
 }
 
+// highlightFeature
 export function highlightFeature(feature) {
   if (!feature) return;
   currentHighlight = feature;
+
+  const objectId = feature?.properties?.OBJECTID;
+  if (objectId != null) setHighlightedMarkerById(objectId);
 }
 
+// waitForEsriLayerLoad
 function waitForEsriLayerLoad(layer, token) {
   return new Promise((resolve) => {
     if (!layer) return resolve([]);
@@ -166,6 +236,7 @@ function waitForEsriLayerLoad(layer, token) {
   });
 }
 
+// showRelatedFeatures
 export async function showRelatedFeatures(projectName, map, { fit = true } = {}) {
   if (!projectName || !map) return;
 
@@ -196,32 +267,36 @@ export async function showRelatedFeatures(projectName, map, { fit = true } = {})
   }
 }
 
+// resetRelatedFeatures
 export function resetRelatedFeatures() {
   if (linesLayer?.setWhere) linesLayer.setWhere('1=0');
   if (polygonsLayer?.setWhere) polygonsLayer.setWhere('1=0');
 }
 
+// showOnlyProject
 export function showOnlyProject(objectId) {
   if (projectsLayer && objectId != null) {
     projectsLayer.setWhere(`OBJECTID = ${objectId}`);
   }
 }
 
+// resetProjectFilter
 export function resetProjectFilter() {
   if (projectsLayer) projectsLayer.setWhere('1=1');
 }
 
+// resetTableHighlights
 export function resetTableHighlights() {
   currentHighlight = null;
+
+  clearHighlightedMarker();
 
   relatedRequestToken++;
   resetRelatedFeatures();
   resetProjectFilter();
 }
 
-/* -----------------------------------
-   Attachments + Modal Slideshow
------------------------------------ */
+// ensureAttachmentModal
 function ensureAttachmentModal() {
   if (document.getElementById('attachment-modal')) return;
 
@@ -277,6 +352,7 @@ function ensureAttachmentModal() {
   });
 }
 
+// closeAttachmentModal
 function closeAttachmentModal() {
   const modal = document.getElementById('attachment-modal');
   if (!modal) return;
@@ -284,18 +360,21 @@ function closeAttachmentModal() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
+// galleryPrev
 function galleryPrev() {
   if (!_gallery || _gallery.length <= 1) return;
   _galleryIndex = (_galleryIndex - 1 + _gallery.length) % _gallery.length;
   renderGallerySlide();
 }
 
+// galleryNext
 function galleryNext() {
   if (!_gallery || _gallery.length <= 1) return;
   _galleryIndex = (_galleryIndex + 1) % _gallery.length;
   renderGallerySlide();
 }
 
+// renderGallerySlide
 function renderGallerySlide() {
   const titleEl = document.getElementById('attachment-modal-title');
   const counterEl = document.getElementById('attachment-modal-counter');
@@ -325,6 +404,7 @@ function renderGallerySlide() {
   contentEl.appendChild(img);
 }
 
+// openAttachmentModal
 function openAttachmentModal({ url, name, type, galleryIndex = null }) {
   const modal = document.getElementById('attachment-modal');
   const titleEl = document.getElementById('attachment-modal-title');
@@ -336,7 +416,6 @@ function openAttachmentModal({ url, name, type, galleryIndex = null }) {
 
   if (!modal || !titleEl || !contentEl || !openEl || !counterEl || !prevBtn || !nextBtn) return;
 
-  // slideshow
   if (Number.isFinite(galleryIndex) && _gallery.length) {
     _galleryIndex = galleryIndex;
     modal.classList.remove('hidden');
@@ -346,7 +425,6 @@ function openAttachmentModal({ url, name, type, galleryIndex = null }) {
     return;
   }
 
-  // file / single mode (nav hidden)
   titleEl.textContent = name || 'Attachment';
   counterEl.textContent = '';
   openEl.href = url || '#';
@@ -377,6 +455,7 @@ function openAttachmentModal({ url, name, type, galleryIndex = null }) {
   modal.querySelector('.attachment-modal__close')?.focus?.();
 }
 
+// wireAttachmentModalClicks
 function wireAttachmentModalClicks(host) {
   if (host._attachmentModalWired) return;
   host._attachmentModalWired = true;
@@ -403,6 +482,7 @@ function wireAttachmentModalClicks(host) {
   });
 }
 
+// renderProjectAttachments
 export async function renderProjectAttachments(objectId, title = 'Attachments') {
   const host = document.getElementById('project-attachments');
   if (!host) return;
