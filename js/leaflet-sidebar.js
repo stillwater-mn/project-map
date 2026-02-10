@@ -12,9 +12,8 @@ L.Control.Sidebar = L.Control.extend({
 
     bottomsheetMaxWidth: 991,
     bottomsheetPeekRatio: 0.22, 
-    bottomsheetMidRatio: 0.50,
-    bottomsheetFullRatio: 1.0, 
-    bottomsheetTopGapPx: 0      
+    bottomsheetFullRatio: 1.0,
+    bottomsheetTopGapPx: 0
   },
 
   initialize: function (options, deprecatedOptions) {
@@ -34,12 +33,11 @@ L.Control.Sidebar = L.Control.extend({
 
     this._isBottomsheet = false;
     this._bs = {
-      state: "peek",
+      state: "peek", // 'peek' , 'full'
       y: null,
       minY: 0,
       maxY: 0,
       peekY: 0,
-      midY: 0,
       fullY: 0,
       dragging: false,
       startY: 0,
@@ -197,11 +195,10 @@ L.Control.Sidebar = L.Control.extend({
     this.fire("content", { id: id });
 
     if (this._isBottomsheet) {
-      if (id === "pane-projectInfo") {
-        this._bsSnapTo("full", true);
-      } else {
-        if (this._bs.state === "peek") this._bsSnapTo("mid", true);
-      }
+      // project info forces FULL
+      if (id === "pane-projectInfo") this._bsSnapTo("full", true);
+      else if (this._bs.state === "peek") this._bsSnapTo("full", true);
+
       this._updateMapButtonVisibility();
       return this;
     }
@@ -409,6 +406,8 @@ L.Control.Sidebar = L.Control.extend({
     this._map.panBy([panWidth, 0], { duration: 0.5 });
   },
 
+  //Bottomsheet
+
   _ensureBottomsheetChrome: function (container) {
     if (!this._paneContainer) return;
 
@@ -525,19 +524,12 @@ L.Control.Sidebar = L.Control.extend({
     var handleRow = this._paneContainer && this._paneContainer.querySelector(".leaflet-bottomsheet-handleRow");
     var handleH = (handleRow && handleRow.getBoundingClientRect && handleRow.getBoundingClientRect().height) || 34;
 
-    var midH = Math.round(vh * this.options.bottomsheetMidRatio);
-
-    // FULL covers entire map => translateY = 0
-    var fullY = 0;
-
-    // peek = handle-only
     var peekH = Math.max(28, Math.round(handleH));
 
     this._bs.peekY = Math.max(0, vh - peekH);
-    this._bs.midY = Math.max(0, vh - midH);
-    this._bs.fullY = fullY;
+    this._bs.fullY = 0;
 
-    this._bs.minY = this._bs.fullY; // 0
+    this._bs.minY = this._bs.fullY;
     this._bs.maxY = this._bs.peekY;
   },
 
@@ -558,9 +550,7 @@ L.Control.Sidebar = L.Control.extend({
   _bsSnapTo: function (state, immediate) {
     if (!this._isBottomsheet) return;
 
-    var targetY = this._bs.peekY;
-    if (state === "mid") targetY = this._bs.midY;
-    if (state === "full") targetY = this._bs.fullY;
+    var targetY = state === "full" ? this._bs.fullY : this._bs.peekY;
 
     this._bs.state = state;
     this._bsApplyTransform(targetY, true);
@@ -653,32 +643,19 @@ L.Control.Sidebar = L.Control.extend({
 
     var y = this._bs.y != null ? this._bs.y : this._bs.peekY;
 
-    var snapPoints = [
-      { state: "full", y: this._bs.fullY },
-      { state: "mid", y: this._bs.midY },
-      { state: "peek", y: this._bs.peekY }
-    ];
-
     var v = this._bs.vel;
     var bias = 0;
-    if (v < -0.6) bias = -80;
-    else if (v < -0.25) bias = -40;
-    else if (v > 0.6) bias = 80;
-    else if (v > 0.25) bias = 40;
+    if (v < -0.6) bias = -120;
+    else if (v < -0.25) bias = -60;
+    else if (v > 0.6) bias = 120;
+    else if (v > 0.25) bias = 60;
 
     var yBiased = y + bias;
 
-    var best = snapPoints[0];
-    var bestD = Math.abs(yBiased - best.y);
-    for (var i = 1; i < snapPoints.length; i++) {
-      var d = Math.abs(yBiased - snapPoints[i].y);
-      if (d < bestD) {
-        best = snapPoints[i];
-        bestD = d;
-      }
-    }
+    var dFull = Math.abs(yBiased - this._bs.fullY);
+    var dPeek = Math.abs(yBiased - this._bs.peekY);
 
-    this._bsSnapTo(best.state, true);
+    this._bsSnapTo(dFull < dPeek ? "full" : "peek", true);
   }
 });
 
