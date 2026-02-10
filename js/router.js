@@ -1,15 +1,4 @@
 // js/router.js
-// Config-driven hash router:
-// - Pane routes: #home, #pane-xyz
-// - Project routes: #project-123
-// Adds: fit-to-boundary on #home with sidebar offset on wide screens.
-//
-// Performance updates:
-// - Do NOT filter clustered points layer on project route (no setWhere OBJECTID=...)
-// - Start flying immediately (no waiting on cluster unwrap / marker creation)
-// - Refine position when marker becomes available (tiny pan), and unwrap clusters in background
-// - Keep cancellation token to prevent stale async work from applying
-
 import {
   projectsLayer,
   markerLookup,
@@ -30,52 +19,46 @@ import {
 import { escapeHtml, formatCellValue } from './ui/format.js';
 import { fetchProjectById } from './services/projectsService.js';
 
-/* -----------------------------
-   Routing state
------------------------------ */
 let lastOriginPaneId = 'home';
 let lastPaneId = 'home';
-
-// cancel stale async project work
 let projectRouteToken = 0;
 
-/* -----------------------------
-   Hash helpers
------------------------------ */
+// getHashId
 function getHashId() {
   return window.location.hash.replace('#', '');
 }
 
+// isProjectHash
 function isProjectHash(h) {
   return typeof h === 'string' && /^project-\d+$/.test(h);
 }
 
+// isPaneHash
 function isPaneHash(h, cfg) {
   if (!h) return false;
   return cfg.some((p) => p?.id === h);
 }
 
+// isOriginPaneId
 function isOriginPaneId(id, cfg) {
   const pane = cfg.find((p) => p.id === id);
   return !!pane && pane.kind !== 'detail';
 }
 
+// getDetailPane
 function getDetailPane(cfg) {
   return cfg.find((p) => p.kind === 'detail') || null;
 }
 
+// getPaneById
 function getPaneById(cfg, id) {
   return cfg.find((p) => p.id === id) || null;
 }
 
-/* -----------------------------
-   Boundary fit on #home
------------------------------ */
+// fitHomeToBoundary
 async function fitHomeToBoundary(map) {
   try {
-    if (jurisdictionBoundaryReady) {
-      await jurisdictionBoundaryReady;
-    }
+    if (jurisdictionBoundaryReady) await jurisdictionBoundaryReady;
   } catch {
     return;
   }
@@ -83,7 +66,6 @@ async function fitHomeToBoundary(map) {
   const boundary = jurisdictionBoundaryLayer;
   if (!boundary || !boundary.getBounds) return;
 
-  // Allow sidebar animation + DOM layout to settle
   await new Promise((r) => requestAnimationFrame(r));
   await new Promise((r) => requestAnimationFrame(r));
 
@@ -120,9 +102,7 @@ async function fitHomeToBoundary(map) {
   }
 }
 
-/* -----------------------------
-   Robust OBJECTID extraction
------------------------------ */
+// getObjectIdFromEsriClick
 function getObjectIdFromEsriClick(e) {
   const id1 = e?.feature?.properties?.OBJECTID;
   if (id1 != null) return Number(id1);
@@ -136,11 +116,8 @@ function getObjectIdFromEsriClick(e) {
   return null;
 }
 
-/**
- * Wait for a marker to exist in markerLookup (deep links can load before markers are created).
- * Uses createfeature/load listeners + polling, with short timeout (since we no longer block fly-to on it).
- */
-function waitForMarker(objectId, timeoutMs = 1200) {
+// waitForMarker
+function waitForMarker(objectId, timeoutMs = 1400) {
   const id = Number(objectId);
 
   return new Promise((resolve) => {
@@ -183,17 +160,12 @@ function waitForMarker(objectId, timeoutMs = 1200) {
   });
 }
 
-/**
- * Fast marker navigation:
- * - Fly immediately to marker latlng (no waiting)
- * - If cluster group exists, unwrap in background then micro-pan to final latlng
- */
+// flyToMarkerFast
 function flyToMarkerFast(map, marker, zoom = 18) {
   if (!map || !marker || typeof marker.getLatLng !== 'function') return;
 
   const ll = marker.getLatLng();
 
-  // If already mostly in view, pan is fastest
   try {
     if (map.getBounds().pad(-0.2).contains(ll)) {
       map.panTo(ll, { animate: true, duration: 0.22 });
@@ -204,7 +176,6 @@ function flyToMarkerFast(map, marker, zoom = 18) {
     map.flyTo(ll, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
   }
 
-  // Unwrap clusters in background (do not await)
   const clusterGroup =
     projectsLayer?._cluster || projectsLayer?._clusters || projectsLayer?._markerCluster;
 
@@ -217,9 +188,7 @@ function flyToMarkerFast(map, marker, zoom = 18) {
   }
 }
 
-/* -----------------------------
-   Detail rendering (config-driven)
------------------------------ */
+// fillDetailTableFromFeature
 function fillDetailTableFromFeature(detailPane, feature) {
   const tableId = detailPane?.detail?.tableId;
   const fields = detailPane?.detail?.fields;
@@ -252,19 +221,19 @@ function fillDetailTableFromFeature(detailPane, feature) {
   }
 }
 
+// clearDetailAttachments
 function clearDetailAttachments(detailPane) {
   const hostId = detailPane?.detail?.attachments?.hostId;
   if (!hostId) return;
-
   const host = document.getElementById(hostId);
   if (host) host.innerHTML = '';
 }
 
+// startDetailAttachments
 function startDetailAttachments(detailPane, objectId) {
   const hostId = detailPane?.detail?.attachments?.hostId;
   if (!hostId) return;
 
-  // Your current utils.js renders into #project-attachments.
   if (hostId !== 'project-attachments') {
     const host = document.getElementById(hostId);
     if (host) host.innerHTML = '';
@@ -274,9 +243,7 @@ function startDetailAttachments(detailPane, objectId) {
   renderProjectAttachments(objectId);
 }
 
-/* -----------------------------
-   Back button
------------------------------ */
+// setBackButtonTarget
 function setBackButtonTarget(detailPane) {
   const backButton = document.querySelector(`#${detailPane.id} .sidebar-back-button`);
   if (!backButton) return;
@@ -289,9 +256,7 @@ function setBackButtonTarget(detailPane) {
   };
 }
 
-/* -----------------------------
-   Route handlers
------------------------------ */
+// handleProjectHash
 async function handleProjectHash(map, sidebar, cfg) {
   const detailPane = getDetailPane(cfg);
   if (!detailPane) return;
@@ -304,27 +269,22 @@ async function handleProjectHash(map, sidebar, cfg) {
   const objectId = Number(match[1]);
   if (!Number.isFinite(objectId)) return;
 
-  // Open detail pane immediately
   sidebar.open(detailPane.id);
   setBackButtonTarget(detailPane);
-
-  // Attachments (async)
   startDetailAttachments(detailPane, objectId);
 
-  // IMPORTANT: do NOT filter the clustered points layer here.
-  // Filtering causes a server refresh + recluster and delays marker availability.
-
-  // Start waiting for marker immediately (but we will not await it)
-  const markerPromise = waitForMarker(objectId);
-
-  // Optimistic: if marker already exists, fly now (instant)
-  const existingMarker = markerLookup[objectId];
-  if (existingMarker) {
-    flyToMarkerFast(map, existingMarker);
+  // filter to the one project again
+  if (projectsLayer?.setWhere) {
+    projectsLayer.setWhere(`OBJECTID = ${objectId}`);
   }
 
-  // Fetch attributes/geometry (used for table + fallback flyTo + related geometry)
+  const markerPromise = waitForMarker(objectId);
+
+  const existingMarker = markerLookup[objectId];
+  if (existingMarker) flyToMarkerFast(map, existingMarker);
+
   let featNow = null;
+
   try {
     const fields = Array.isArray(detailPane?.detail?.fields)
       ? detailPane.detail.fields.map((f) => f.key).filter(Boolean)
@@ -337,26 +297,19 @@ async function handleProjectHash(map, sidebar, cfg) {
       fillDetailTableFromFeature(detailPane, featNow);
       highlightFeature(featNow);
 
-      // If we haven't flown yet (no marker), fly immediately via geometry
-      if (!existingMarker) {
-        flyToFeature(map, featNow);
-      }
+      if (!existingMarker) flyToFeature(map, featNow);
 
       const pn = featNow?.properties?.project_name;
       if (pn) showRelatedFeatures(pn, map, { fit: true });
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // Refine when marker becomes available (do not block)
   markerPromise.then((marker) => {
     if (myToken !== projectRouteToken) return;
     if (!marker) return;
 
     flyToMarkerFast(map, marker);
 
-    // If marker has authoritative feature props, refresh table (once)
     if (marker.feature) {
       fillDetailTableFromFeature(detailPane, marker.feature);
       highlightFeature(marker.feature);
@@ -368,55 +321,44 @@ async function handleProjectHash(map, sidebar, cfg) {
   });
 }
 
+// handlePaneHash
 function handlePaneHash(map, sidebar, paneId, cfg) {
-  // cancel in-flight project work when switching panes
   projectRouteToken++;
 
   const targetId = paneId || 'home';
   const pane = getPaneById(cfg, targetId);
 
-  // If unknown pane, fall back to home if present
   const home = getPaneById(cfg, 'home');
   const resolvedPane = pane || home;
   if (!resolvedPane) return;
 
   sidebar.open(resolvedPane.id);
 
-  // Track origin + last pane (origin is anything except detail)
   if (isOriginPaneId(resolvedPane.id, cfg)) {
     lastOriginPaneId = resolvedPane.id;
     lastPaneId = resolvedPane.id;
   }
 
-  // Apply filter if pane defines where; else show all
   if (resolvedPane.where && projectsLayer?.setWhere) {
     projectsLayer.setWhere(resolvedPane.where);
   } else if (projectsLayer?.setWhere) {
     projectsLayer.setWhere('1=1');
   }
 
-  // Clear related geometry when leaving project route
   resetRelatedFeatures();
 
-  // Clear attachments when leaving detail pane
   const detailPane = getDetailPane(cfg);
   if (detailPane && resolvedPane.id !== detailPane.id) {
     clearDetailAttachments(detailPane);
   }
 
-  // Fit boundary when on home
-  if (resolvedPane.id === 'home') {
-    fitHomeToBoundary(map);
-  }
+  if (resolvedPane.id === 'home') fitHomeToBoundary(map);
 }
 
-/* -----------------------------
-   Setup
------------------------------ */
+// setupSidebarRouting
 export function setupSidebarRouting(sidebar, map, sidebarConfig) {
   const cfg = Array.isArray(sidebarConfig) ? sidebarConfig : [];
 
-  // Sidebar link clicks -> set hash
   document.querySelectorAll('.sidebar-pane-link').forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
@@ -425,7 +367,6 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     });
   });
 
-  // Map point clicks -> project route
   projectsLayer?.on?.('click', (e) => {
     const objectId = getObjectIdFromEsriClick(e);
     if (!Number.isFinite(objectId)) return;
@@ -433,7 +374,6 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     const current = getHashId();
     const next = `project-${objectId}`;
 
-    // Preserve origin if currently on a pane route
     if (isPaneHash(current, cfg)) {
       const pane = getPaneById(cfg, current);
       if (pane && pane.kind !== 'detail') {
@@ -442,9 +382,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
       }
     }
 
-    // If already on this project, hashchange won't fire — refresh manually
     if (current === next) {
-      // bump token so any in-flight route work cancels
       projectRouteToken++;
 
       const detailPane = getDetailPane(cfg);
@@ -454,7 +392,9 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
       setBackButtonTarget(detailPane);
       startDetailAttachments(detailPane, objectId);
 
-      // Maintain canonical hash and run handler explicitly
+      // re-apply filter immediately
+      if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
+
       window.location.hash = next;
       handleProjectHash(map, sidebar, cfg).catch(() => {});
       return;
@@ -476,24 +416,17 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
       return;
     }
 
-    // Pane navigation: ensure we aren't stuck on single-OBJECTID filter
     resetProjectFilter();
     handlePaneHash(map, sidebar, h, cfg);
   };
 
-  // Initial load
   route();
-
-  // Listen for hash changes
   window.addEventListener('hashchange', route);
 
-  // Expose last pane if you want it elsewhere
   window.__getLastPaneId = () => lastPaneId || 'home';
 }
 
-/**
- * External setter (used by list clicks)
- */
+// setLastOriginPane
 export function setLastOriginPane(paneId) {
   if (typeof paneId === 'string' && paneId) {
     lastOriginPaneId = paneId;
