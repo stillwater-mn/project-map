@@ -185,6 +185,22 @@ body { margin: 0; padding: 0; }
   background-color: transparent;
   color: inherit;
 }
+/* ---- Project table "View Link" button ---- */
+.project-table .project-link-btn {
+  display: inline-block;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  color: #fff;
+  background: #cc4529;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.project-table .project-link-btn:hover {
+  background: #b03b23;
+}
 
 /* --------------------- Attachments (ONE featured image) --------------------- */
 .project-attachments { margin-top: 0.25rem; }
@@ -621,4 +637,5 @@ body { margin: 0; padding: 0; }
   }
 
 }
+
 
