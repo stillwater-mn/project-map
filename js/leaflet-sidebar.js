@@ -11,10 +11,10 @@ L.Control.Sidebar = L.Control.extend({
     position: "left",
 
     bottomsheetMaxWidth: 991,
-    bottomsheetPeekRatio: 0.22, // unused (peek is handle-only)
+    bottomsheetPeekRatio: 0.22, 
     bottomsheetMidRatio: 0.40,
-    bottomsheetFullRatio: 0.92,
-    bottomsheetTopGapPx: 8
+    bottomsheetFullRatio: 1.0, 
+    bottomsheetTopGapPx: 0      
   },
 
   initialize: function (options, deprecatedOptions) {
@@ -119,9 +119,7 @@ L.Control.Sidebar = L.Control.extend({
       }
     }
 
-    for (i = 0; i < this._tabitems.length; i++) {
-      this._tabClick(this._tabitems[i], "on");
-    }
+    for (i = 0; i < this._tabitems.length; i++) this._tabClick(this._tabitems[i], "on");
 
     this._ensureBottomsheetChrome(container);
 
@@ -523,22 +521,23 @@ L.Control.Sidebar = L.Control.extend({
 
   _bsRecalcSnapPoints: function () {
     var vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-    var topGap = this.options.bottomsheetTopGapPx;
 
     var handleRow = this._paneContainer && this._paneContainer.querySelector(".leaflet-bottomsheet-handleRow");
     var handleH = (handleRow && handleRow.getBoundingClientRect && handleRow.getBoundingClientRect().height) || 34;
 
     var midH = Math.round(vh * this.options.bottomsheetMidRatio);
-    var fullH = Math.round(vh * this.options.bottomsheetFullRatio);
-    fullH = Math.min(fullH, vh - topGap);
 
+    // FULL covers entire map => translateY = 0
+    var fullY = 0;
+
+    // peek = handle-only
     var peekH = Math.max(28, Math.round(handleH));
 
     this._bs.peekY = Math.max(0, vh - peekH);
     this._bs.midY = Math.max(0, vh - midH);
-    this._bs.fullY = Math.max(0, vh - fullH);
+    this._bs.fullY = fullY;
 
-    this._bs.minY = this._bs.fullY;
+    this._bs.minY = this._bs.fullY; // 0
     this._bs.maxY = this._bs.peekY;
   },
 
