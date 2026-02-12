@@ -65,8 +65,11 @@ export const PROJECT_INFO_FIELDS = Object.freeze([
   { key: 'project_name', label: 'Project Name' },
   { key: 'project_type', label: 'Project Type' },
   { key: 'lead_agency', label: 'Lead Agency' },
-  { key: 'url', label: 'View Project Page' },
-  { key: 'more_information', label: 'More Information' }
+  { key: 'more_information', label: 'More Information' },
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'status', label: 'Project Status' },
+  { key: 'project_mangager', label: 'Project Contact' },
+  { key: 'url', label: 'View Project Page' }
 ]);
 
 export const BOUNDARY = Object.freeze({
@@ -78,6 +81,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
