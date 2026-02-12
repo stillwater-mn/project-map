@@ -97,10 +97,6 @@ function clearHighlightedMarker() {
   _highlightedMarker = null;
 }
 
-/* -----------------------------
-   Hover tooltip
------------------------------ */
-
 // initHoverTooltip
 export function initHoverTooltip(map, { top = 12, right = 12 } = {}) {
   if (!map) return null;
@@ -158,10 +154,6 @@ export function wireHoverTooltipToProjectsLayer({
     projectsLayer._map?.on?.('movestart zoomstart', hideHoverTooltip);
   } catch {}
 }
-
-/* -----------------------------
-   Map navigation
------------------------------ */
 
 // flyToFeature
 export async function flyToFeature(map, feature, zoom = 18) {
@@ -304,10 +296,6 @@ export function resetTableHighlights() {
   resetProjectFilter();
 }
 
-/* -----------------------------
-   Attachments (modal + gallery)
------------------------------ */
-
 // ensureAttachmentModal
 function ensureAttachmentModal() {
   if (document.getElementById('attachment-modal')) return;
@@ -386,33 +374,6 @@ function galleryNext() {
   renderGallerySlide();
 }
 
-
-function cacheBustUrl(url, info) {
-  if (!url) return '';
-
-  try {
-    const u = new URL(url, window.location.href);
-
-    // Prefer metadata that changes when the file changes.
-    // ArcGIS commonly provides: id, size (and sometimes modified/date).
-    const v =
-      [info?.id, info?.size, info?.modified, info?.date]
-        .filter((x) => x != null && String(x).trim() !== '')
-        .join('-') || String(Date.now());
-
-    u.searchParams.set('v', v);
-    return u.toString();
-  } catch {
-    // Fallback if URL constructor fails (rare)
-    const joiner = url.includes('?') ? '&' : '?';
-    const v =
-      [info?.id, info?.size, info?.modified, info?.date]
-        .filter((x) => x != null && String(x).trim() !== '')
-        .join('-') || String(Date.now());
-    return `${url}${joiner}v=${encodeURIComponent(v)}`;
-  }
-}
-
 // renderGallerySlide
 function renderGallerySlide() {
   const titleEl = document.getElementById('attachment-modal-title');
@@ -427,7 +388,7 @@ function renderGallerySlide() {
 
   const slide = _gallery[_galleryIndex];
   titleEl.textContent = slide.name || 'Attachment';
-  openEl.href = slide.rawUrl || slide.url || '#';
+  openEl.href = slide.url || '#';
 
   counterEl.textContent = _gallery.length > 1 ? `${_galleryIndex + 1} / ${_gallery.length}` : '';
 
@@ -438,9 +399,7 @@ function renderGallerySlide() {
   contentEl.innerHTML = '';
   const img = document.createElement('img');
   img.className = 'attachment-modal__img';
-
   img.src = slide.url;
-
   img.alt = slide.name || 'Attachment image';
   contentEl.appendChild(img);
 }
@@ -477,7 +436,7 @@ function openAttachmentModal({ url, name, type, galleryIndex = null }) {
   if (url && isImageContentType(type)) {
     const img = document.createElement('img');
     img.className = 'attachment-modal__img';
-    img.src = url; // (this path is used for non-gallery opens; gallery path is preferred)
+    img.src = url;
     img.alt = name || 'Attachment image';
     contentEl.appendChild(img);
   } else {
@@ -544,21 +503,12 @@ export async function renderProjectAttachments(objectId, title = 'Attachments') 
     const allInfos = infos || [];
 
     _galleryObjectId = String(objectId);
-
-   
     _gallery = allInfos
       .filter((info) => info?.url && isImageContentType(info.contentType || ''))
       .map((info) => ({
-        // rawUrl for "open in new tab" (optional)
-        rawUrl: info.url,
-        url: cacheBustUrl(info.url, info),
+        url: info.url,
         name: info.name || 'Attachment',
-        type: info.contentType || 'image',
-        // keep metadata if you ever want it
-        id: info?.id,
-        size: info?.size,
-        modified: info?.modified,
-        date: info?.date
+        type: info.contentType || 'image'
       }));
 
     if (!allInfos.length) {
@@ -573,17 +523,13 @@ export async function renderProjectAttachments(objectId, title = 'Attachments') 
       const total = _gallery.length;
 
       const badge = total > 1 ? `<div class="attachment-count-badge">(1/${total})</div>` : '';
-
       const bg = featuredImage.url.replaceAll("'", "\\'");
-
-    
-      const openHref = featuredImage.rawUrl || featuredImage.url;
 
       host.innerHTML = `
         <div class="attachments-featured">
           <a class="attachment-card attachment-featured js-attachment-open"
-             href="${openHref}" target="_blank" rel="noopener"
-             data-url="${openHref}"
+             href="${featuredImage.url}" target="_blank" rel="noopener"
+             data-url="${featuredImage.url}"
              data-name="${safeName}"
              data-type="${featuredImage.type}"
              data-gallery-index="0">
