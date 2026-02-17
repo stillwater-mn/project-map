@@ -154,7 +154,7 @@ body { margin: 0; padding: 0; }
   padding: 10px;
   border: 1px solid #ccc;
   text-align: left;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
 }
 
 .project-table th {
@@ -637,6 +637,7 @@ body { margin: 0; padding: 0; }
   }
 
 }
+
 
 
 
