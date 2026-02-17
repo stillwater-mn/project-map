@@ -168,7 +168,7 @@ function clearHighlightedMarker() {
 // flyToFeature 
 
 
-export async function flyToFeature(map, feature, zoom = 16) {
+export async function flyToFeature(map, feature, zoom = 17) {
   if (!map || !feature) return;
 
   const objectId = feature?.properties?.OBJECTID;
@@ -589,3 +589,4 @@ export async function renderProjectAttachments(objectId, title = 'Attachments') 
     `;
   }
 }
+
