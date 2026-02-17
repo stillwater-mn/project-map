@@ -1,6 +1,6 @@
 // js/config.js
 
-export const APP_VERSION = '2026-02-17.2';
+export const APP_VERSION = '2026-02-17.3';
 
 
 
@@ -84,6 +84,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
