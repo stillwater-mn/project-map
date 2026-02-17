@@ -82,9 +82,6 @@ export const BOUNDARY = Object.freeze({
   })
 });
 
-export const CACHE_CONFIG = Object.freeze({
-  ttlMs: 5 * 60 * 1000 // 5 minutes
-});
 
 
 
