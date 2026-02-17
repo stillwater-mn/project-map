@@ -156,7 +156,7 @@ export function wireHoverTooltipToProjectsLayer({
 }
 
 // flyToFeature
-export async function flyToFeature(map, feature, zoom = 18) {
+export async function flyToFeature(map, feature, zoom = 16) {
   if (!map || !feature) return;
 
   const objectId = feature?.properties?.OBJECTID;
@@ -591,3 +591,4 @@ export async function renderProjectAttachments(objectId, title = 'Attachments') 
     `;
   }
 }
+
