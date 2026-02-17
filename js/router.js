@@ -13,49 +13,49 @@ import {
   resetTableHighlights,
   resetRelatedFeatures,
   resetProjectFilter,
-  renderProjectAttachments
+  renderProjectAttachments,
+  getSidebarLngOffset
 } from './utils.js';
 
 import { escapeHtml, formatCellValue } from './ui/format.js';
 import { fetchProjectById } from './services/projectsService.js';
 
-let lastOriginPaneId = 'home';
-let lastPaneId = 'home';
+
+const MOBILE_BREAKPOINT = 1100; // px — matches utils.js
+
+
+let lastOriginPaneId  = 'home';
+let lastPaneId        = 'home';
 let projectRouteToken = 0;
 
-// getHashId
+
 function getHashId() {
   return window.location.hash.replace('#', '');
 }
 
-// isProjectHash
 function isProjectHash(h) {
   return typeof h === 'string' && /^project-\d+$/.test(h);
 }
 
-// isPaneHash
 function isPaneHash(h, cfg) {
-  if (!h) return false;
-  return cfg.some((p) => p?.id === h);
+  return !!h && cfg.some((p) => p?.id === h);
 }
 
-// isOriginPaneId
 function isOriginPaneId(id, cfg) {
   const pane = cfg.find((p) => p.id === id);
   return !!pane && pane.kind !== 'detail';
 }
 
-// getDetailPane
+
 function getDetailPane(cfg) {
-  return cfg.find((p) => p.kind === 'detail') || null;
+  return cfg.find((p) => p.kind === 'detail') ?? null;
 }
 
-// getPaneById
 function getPaneById(cfg, id) {
-  return cfg.find((p) => p.id === id) || null;
+  return cfg.find((p) => p.id === id) ?? null;
 }
 
-// fitHomeToBoundary
+
 async function fitHomeToBoundary(map) {
   try {
     if (jurisdictionBoundaryReady) await jurisdictionBoundaryReady;
@@ -64,7 +64,8 @@ async function fitHomeToBoundary(map) {
   }
 
   const boundary = jurisdictionBoundaryLayer;
-  if (!boundary || !boundary.getBounds) return;
+  if (!boundary?.getBounds) return;
+
 
   await new Promise((r) => requestAnimationFrame(r));
   await new Promise((r) => requestAnimationFrame(r));
@@ -72,51 +73,83 @@ async function fitHomeToBoundary(map) {
   const bounds = boundary.getBounds();
   if (!bounds?.isValid?.()) return;
 
-  const sidebarEl = document.getElementById('sidebar');
-  const sidebarWidth = sidebarEl ? sidebarEl.getBoundingClientRect().width : 0;
-  const buffer = 180;
-
   const flyOpts = {
-    padding: [20, 20],
-    duration: 1.2,
+    padding:       [20, 20],
+    duration:      1.2,
     easeLinearity: 0.12,
-    noMoveStart: true
+    noMoveStart:   true
   };
 
-  if (window.innerWidth > 1100 && sidebarWidth > 0) {
-    const mapWidth = map.getSize().x;
+  if (window.innerWidth > MOBILE_BREAKPOINT) {
+    const sidebarEl    = document.getElementById('sidebar');
+    const sidebarWidth = sidebarEl?.getBoundingClientRect().width ?? 0;
 
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    const lngSpan = ne.lng - sw.lng;
-    const lngShift = ((sidebarWidth + buffer) / mapWidth) * lngSpan;
+    if (sidebarWidth > 0) {
+      const mapWidth = map.getSize().x;
+      const sw       = bounds.getSouthWest();
+      const ne       = bounds.getNorthEast();
+      const lngSpan  = ne.lng - sw.lng;
 
-    const adjustedBounds = L.latLngBounds(
-      L.latLng(sw.lat, sw.lng - lngShift),
-      L.latLng(ne.lat, ne.lng - lngShift)
-    );
+      // Shift the entire bounding box left so its visual centre lands in the
+      // open portion of the map (right of the sidebar).
+      const lngShift = ((sidebarWidth + 180) / mapWidth) * lngSpan;
 
-    map.flyToBounds(adjustedBounds, flyOpts);
-  } else {
-    map.flyToBounds(bounds, flyOpts);
+      map.flyToBounds(
+        L.latLngBounds(
+          L.latLng(sw.lat, sw.lng - lngShift),
+          L.latLng(ne.lat, ne.lng - lngShift)
+        ),
+        flyOpts
+      );
+      return;
+    }
+  }
+
+  map.flyToBounds(bounds, flyOpts);
+}
+
+
+function flyToMarkerFast(map, marker, zoom = 18) {
+  if (!map || !marker || typeof marker.getLatLng !== 'function') return;
+
+  const ll     = marker.getLatLng();
+  const offset = getSidebarLngOffset(map, zoom);
+  const target = L.latLng(ll.lat, ll.lng - offset);
+
+  try {
+
+    if (map.getBounds().pad(-0.2).contains(ll)) {
+      map.panTo(target, { animate: true, duration: 0.22 });
+    } else {
+      map.flyTo(target, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+    }
+  } catch {
+    map.flyTo(target, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+  }
+
+  // Unspider/uncollapse the cluster so the individual marker becomes visible
+  const clusterGroup =
+    projectsLayer?._cluster ??
+    projectsLayer?._clusters ??
+    projectsLayer?._markerCluster;
+
+  if (clusterGroup && typeof clusterGroup.zoomToShowLayer === 'function') {
+    clusterGroup.zoomToShowLayer(marker, () => {
+      try {
+        // Re-apply offset after the cluster animation settles
+        map.panTo(L.latLng(ll.lat, ll.lng - getSidebarLngOffset(map, map.getZoom())), {
+          animate: true,
+          duration: 0.2
+        });
+      } catch {}
+    });
   }
 }
 
-// getObjectIdFromEsriClick
-function getObjectIdFromEsriClick(e) {
-  const id1 = e?.feature?.properties?.OBJECTID;
-  if (id1 != null) return Number(id1);
 
-  const id2 = e?.layer?.feature?.properties?.OBJECTID;
-  if (id2 != null) return Number(id2);
 
-  const id3 = e?.target?.feature?.properties?.OBJECTID;
-  if (id3 != null) return Number(id3);
 
-  return null;
-}
 
-// waitForMarker
 function waitForMarker(objectId, timeoutMs = 1400) {
   const id = Number(objectId);
 
@@ -126,19 +159,12 @@ function waitForMarker(objectId, timeoutMs = 1400) {
 
     const start = Date.now();
 
-    const onCreate = () => {
-      const lyr = markerLookup[id];
-      if (lyr) cleanup(lyr);
-    };
-
-    const onLoad = () => {
-      const lyr = markerLookup[id];
-      if (lyr) cleanup(lyr);
-    };
+    const onCreate = () => { const lyr = markerLookup[id]; if (lyr) cleanup(lyr); };
+    const onLoad   = () => { const lyr = markerLookup[id]; if (lyr) cleanup(lyr); };
 
     const tick = () => {
       const lyr = markerLookup[id];
-      if (lyr) return cleanup(lyr);
+      if (lyr)                           return cleanup(lyr);
       if (Date.now() - start > timeoutMs) return cleanup(null);
       setTimeout(tick, 70);
     };
@@ -160,45 +186,30 @@ function waitForMarker(objectId, timeoutMs = 1400) {
   });
 }
 
-// flyToMarkerFast
-function flyToMarkerFast(map, marker, zoom = 18) {
-  if (!map || !marker || typeof marker.getLatLng !== 'function') return;
 
-  const ll = marker.getLatLng();
+// getObjectIdFromEsriClick
 
-  try {
-    if (map.getBounds().pad(-0.2).contains(ll)) {
-      map.panTo(ll, { animate: true, duration: 0.22 });
-    } else {
-      map.flyTo(ll, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
-    }
-  } catch {
-    map.flyTo(ll, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
-  }
 
-  const clusterGroup =
-    projectsLayer?._cluster || projectsLayer?._clusters || projectsLayer?._markerCluster;
+function getObjectIdFromEsriClick(e) {
+  const id =
+    e?.feature?.properties?.OBJECTID ??
+    e?.layer?.feature?.properties?.OBJECTID ??
+    e?.target?.feature?.properties?.OBJECTID;
 
-  if (clusterGroup && typeof clusterGroup.zoomToShowLayer === 'function') {
-    clusterGroup.zoomToShowLayer(marker, () => {
-      try {
-        map.panTo(marker.getLatLng(), { animate: true, duration: 0.2 });
-      } catch {}
-    });
-  }
+  return id != null ? Number(id) : null;
 }
 
-// fillDetailTableFromFeature
+// Detail pane helpers
+
 function fillDetailTableFromFeature(detailPane, feature) {
   const tableId = detailPane?.detail?.tableId;
-  const fields = detailPane?.detail?.fields;
-
+  const fields  = detailPane?.detail?.fields;
   if (!tableId || !Array.isArray(fields)) return;
 
   const tbody = document.querySelector(`#${tableId} tbody`);
   if (!tbody) return;
 
-  const props = feature?.properties || {};
+  const props    = feature?.properties ?? {};
   const objectId = props.OBJECTID;
 
   const table = tbody.closest('table');
@@ -221,7 +232,6 @@ function fillDetailTableFromFeature(detailPane, feature) {
   }
 }
 
-// clearDetailAttachments
 function clearDetailAttachments(detailPane) {
   const hostId = detailPane?.detail?.attachments?.hostId;
   if (!hostId) return;
@@ -229,7 +239,6 @@ function clearDetailAttachments(detailPane) {
   if (host) host.innerHTML = '';
 }
 
-// startDetailAttachments
 function startDetailAttachments(detailPane, objectId) {
   const hostId = detailPane?.detail?.attachments?.hostId;
   if (!hostId) return;
@@ -243,20 +252,21 @@ function startDetailAttachments(detailPane, objectId) {
   renderProjectAttachments(objectId);
 }
 
-// setBackButtonTarget
 function setBackButtonTarget(detailPane) {
-  const backButton = document.querySelector(`#${detailPane.id} .sidebar-back-button`);
-  if (!backButton) return;
+  const btn = document.querySelector(`#${detailPane.id} .sidebar-back-button`);
+  if (!btn) return;
 
-  backButton.href = `#${lastOriginPaneId}`;
-  backButton.onclick = (e) => {
+  btn.href    = `#${lastOriginPaneId}`;
+  btn.onclick = (e) => {
     e.preventDefault();
     resetTableHighlights();
     window.location.hash = `#${lastOriginPaneId}`;
   };
 }
 
+
 // handleProjectHash
+
 async function handleProjectHash(map, sidebar, cfg) {
   const detailPane = getDetailPane(cfg);
   if (!detailPane) return;
@@ -273,13 +283,11 @@ async function handleProjectHash(map, sidebar, cfg) {
   setBackButtonTarget(detailPane);
   startDetailAttachments(detailPane, objectId);
 
-  // filter to the one project again
-  if (projectsLayer?.setWhere) {
-    projectsLayer.setWhere(`OBJECTID = ${objectId}`);
-  }
+  if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
 
   const markerPromise = waitForMarker(objectId);
 
+  // If the marker is already in the lookup, fly immediately
   const existingMarker = markerLookup[objectId];
   if (existingMarker) flyToMarkerFast(map, existingMarker);
 
@@ -304,6 +312,7 @@ async function handleProjectHash(map, sidebar, cfg) {
     }
   } catch {}
 
+  // When the marker eventually appears in the cluster, update position + icon
   markerPromise.then((marker) => {
     if (myToken !== projectRouteToken) return;
     if (!marker) return;
@@ -315,28 +324,29 @@ async function handleProjectHash(map, sidebar, cfg) {
       highlightFeature(marker.feature);
     }
 
-    const feature = marker.feature || featNow;
-    const pn = feature?.properties?.project_name;
+    const feature = marker.feature ?? featNow;
+    const pn      = feature?.properties?.project_name;
     if (pn) showRelatedFeatures(pn, map, { fit: true });
   });
 }
 
+
 // handlePaneHash
+
 function handlePaneHash(map, sidebar, paneId, cfg) {
   projectRouteToken++;
 
-  const targetId = paneId || 'home';
-  const pane = getPaneById(cfg, targetId);
-
-  const home = getPaneById(cfg, 'home');
-  const resolvedPane = pane || home;
+  const targetId      = paneId || 'home';
+  const pane          = getPaneById(cfg, targetId);
+  const home          = getPaneById(cfg, 'home');
+  const resolvedPane  = pane ?? home;
   if (!resolvedPane) return;
 
   sidebar.open(resolvedPane.id);
 
   if (isOriginPaneId(resolvedPane.id, cfg)) {
     lastOriginPaneId = resolvedPane.id;
-    lastPaneId = resolvedPane.id;
+    lastPaneId       = resolvedPane.id;
   }
 
   if (resolvedPane.where && projectsLayer?.setWhere) {
@@ -355,10 +365,13 @@ function handlePaneHash(map, sidebar, paneId, cfg) {
   if (resolvedPane.id === 'home') fitHomeToBoundary(map);
 }
 
-// setupSidebarRouting
+
+// Public API
+
 export function setupSidebarRouting(sidebar, map, sidebarConfig) {
   const cfg = Array.isArray(sidebarConfig) ? sidebarConfig : [];
 
+  // Intercept pane-link clicks → set hash (let route() handle the rest)
   document.querySelectorAll('.sidebar-pane-link').forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
@@ -367,21 +380,25 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     });
   });
 
+  // Project marker click → navigate to project hash
   projectsLayer?.on?.('click', (e) => {
     const objectId = getObjectIdFromEsriClick(e);
     if (!Number.isFinite(objectId)) return;
 
     const current = getHashId();
-    const next = `project-${objectId}`;
+    const next    = `project-${objectId}`;
 
+    // Track the pane we're navigating *away from* so the back button works
     if (isPaneHash(current, cfg)) {
       const pane = getPaneById(cfg, current);
       if (pane && pane.kind !== 'detail') {
         lastOriginPaneId = current;
-        lastPaneId = current;
+        lastPaneId       = current;
       }
     }
 
+    // Clicking the same project again while already on its detail pane:
+    // re-open and re-fly without relying on a hashchange event (hash didn't change)
     if (current === next) {
       projectRouteToken++;
 
@@ -392,7 +409,6 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
       setBackButtonTarget(detailPane);
       startDetailAttachments(detailPane, objectId);
 
-      // re-apply filter immediately
       if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
 
       window.location.hash = next;
@@ -403,6 +419,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     window.location.hash = next;
   });
 
+  // Central route handler — called on page load and every hashchange
   const route = () => {
     const h = getHashId();
 
@@ -422,14 +439,11 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
 
   route();
   window.addEventListener('hashchange', route);
-
-  window.__getLastPaneId = () => lastPaneId || 'home';
 }
 
-// setLastOriginPane
 export function setLastOriginPane(paneId) {
   if (typeof paneId === 'string' && paneId) {
     lastOriginPaneId = paneId;
-    lastPaneId = paneId;
+    lastPaneId       = paneId;
   }
 }
