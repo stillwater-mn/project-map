@@ -12,13 +12,13 @@ export function formatCellValue(val) {
   if (val == null) return '';
   const s = String(val);
 
-  // Auto-link plain http(s) URLs
+
   if (/^https?:\/\//i.test(s.trim())) {
     const safeUrl = escapeHtml(s.trim());
-    return `<a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a>`;
+    return `<a class="project-link-btn" href="${safeUrl}" target="_blank" rel="noopener noreferrer">View Page</a>`;
   }
 
-  // Preserve line breaks for longer text
+
   return escapeHtml(s).replaceAll('\n', '<br>');
 }
 
