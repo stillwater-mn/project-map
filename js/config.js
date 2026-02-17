@@ -1,5 +1,8 @@
 // js/config.js
-// Central app configuration: services, map defaults, basemaps, theme, and layer symbology.
+
+export const APP_VERSION = '2026-02-17.1';
+
+
 
 export const SERVICES = Object.freeze({
   // Clustered points layer (FeatureServer layer 1)
@@ -81,6 +84,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
