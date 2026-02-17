@@ -119,7 +119,7 @@ async function fitHomeToBoundary(map) {
 // lands in the visible portion of the map rather than under the sidebar.
 // Uses getSidebarLngOffset() from utils.js with the *target* zoom so the
 // offset is accurate even when the map is about to change zoom levels.
-function flyToMarkerFast(map, marker, zoom = 18) {
+function flyToMarkerFast(map, marker, zoom = 17) {
   if (!map || !marker || typeof marker.getLatLng !== 'function') return;
 
   const ll     = marker.getLatLng();
@@ -431,3 +431,4 @@ export function setLastOriginPane(paneId) {
     lastPaneId       = paneId;
   }
 }
+
