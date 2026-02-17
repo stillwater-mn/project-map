@@ -4,7 +4,7 @@
 // - Related geometry layers (lines/polygons) with styles from config
 // - Jurisdiction boundary GeoJSON loader (cached)
 
-import { SERVICES, BASEMAPS, GEOMETRY_STYLES } from './config.js';
+import { SERVICES, BASEMAPS, GEOMETRY_STYLES, PROJECT_INFO_FIELDS } from './config.js';
 
 /* -----------------------------------
    Base Maps
@@ -17,16 +17,22 @@ export const satelliteLayer = L.tileLayer(BASEMAPS.satellite.url, BASEMAPS.satel
 ----------------------------------- */
 export const markerLookup = Object.create(null);
 
-/* -----------------------------------
-   Clustered Projects Layer (Points)
------------------------------------ */
+
+//Point feature
+const PROJECT_FIELDS = [
+  'OBJECTID',
+  ...PROJECT_INFO_FIELDS.map(f => f.key)
+];
+
 export const projectsLayer = L.esri.Cluster.featureLayer({
   url: SERVICES.projectsPoints,
+  fields: PROJECT_FIELDS,
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   removeOutsideVisibleBounds: true,
   useCors: true
 });
+
 
 // Populate markerLookup as features are created so deep-links can wait on markers.
 projectsLayer.on('createfeature', function (e) {
@@ -113,3 +119,4 @@ export function loadJurisdictionBoundary(url, style) {
 
   return jurisdictionBoundaryReady;
 }
+
