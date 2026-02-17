@@ -5,33 +5,17 @@
   <title>Project Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <!-- Leaflet Sidebar CSS -->
   <link rel="stylesheet" href="css/leaflet-sidebar.css" />
-
-  <!-- MarkerCluster CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
-  <!-- ExtraMarkers CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-extra-markers/1.2.1/css/leaflet.extra-markers.min.css" />
-
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
-
-  <!-- Leaflet Basemap Control CSS -->
   <link rel="stylesheet" href="css/L.basemapControl.min.css" />
-
-  <!-- Esri Legend CSS -->
   <link rel="stylesheet" href="https://unpkg.com/esri-leaflet-legend@2.0.0/dist/esri-leaflet-legend.css" />
-
-  <!-- Custom CSS -->
   <link rel="stylesheet" href="css/style.css" />
 
   <style>
-    /* Ensure the map fills the viewport */
     html, body, #map { height: 100%; margin: 0; padding: 0; }
   </style>
 </head>
@@ -40,7 +24,7 @@
   <!-- Sidebar container -->
   <div id="sidebar" class="leaflet-sidebar"></div>
 
-  <!-- Map container -->
+ 
   <div id="map"></div>
 
   <!-- Splash Screen (shown once on first load) -->
@@ -83,29 +67,17 @@
     </div>
   </div>
 
-  <!-- JS Libraries: Correct Order -->
-  <!-- 1. Leaflet core -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- 2. MarkerCluster BEFORE Esri Cluster -->
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
-  <!-- 3. Esri Leaflet -->
   <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
-
-  <!-- 4. Esri Leaflet Vector (optional) -->
   <script src="https://unpkg.com/esri-leaflet-vector@3.0.2/dist/esri-leaflet-vector.js"></script>
-
-  <!-- 5. Esri Leaflet Cluster -->
   <script src="https://unpkg.com/esri-leaflet-cluster@3.0.1/dist/esri-leaflet-cluster.js"></script>
-
-  <!-- 6. ExtraMarkers, Basemap, Legend, Sidebar -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-extra-markers/1.2.1/js/leaflet.extra-markers.min.js"></script>
   <script src="js/L.basemapControl.min.js"></script>
   <script src="https://unpkg.com/esri-leaflet-legend@2.0.0/dist/esri-leaflet-legend.js"></script>
   <script src="js/leaflet-sidebar.js"></script>
 
-  <!-- 7. Your Main JS Module (loads the rest via imports) -->
-  <script type="module" src="js/main.js"></script>
+
+  <script type="module" src="js/main.js?v=2026-02-17"></script>
 </body>
 </html>
