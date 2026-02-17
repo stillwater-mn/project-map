@@ -1,20 +1,13 @@
 // js/layers.js
-// - Basemaps
-// - Clustered projects points layer + marker lookup
-// - Related geometry layers (lines/polygons) with styles from config
-// - Jurisdiction boundary GeoJSON loader (cached)
+
 
 import { SERVICES, BASEMAPS, GEOMETRY_STYLES, PROJECT_INFO_FIELDS } from './config.js';
+import { highlightState } from './utils.js';
 
-/* -----------------------------------
-   Base Maps
------------------------------------ */
 export const cartoLayer = L.tileLayer(BASEMAPS.carto.url, BASEMAPS.carto.options);
 export const satelliteLayer = L.tileLayer(BASEMAPS.satellite.url, BASEMAPS.satellite.options);
 
-/* -----------------------------------
-   Marker Lookup for Cluster
------------------------------------ */
+
 export const markerLookup = Object.create(null);
 
 
@@ -44,22 +37,18 @@ projectsLayer.on('createfeature', function (e) {
   if (objId != null && e?.layer) {
     markerLookup[Number(objId)] = e.layer;
 
-    // apply highlight if this marker was recreated by clustering
-    const hid = Number(window.__highlightedObjectId);
+    // Re-apply highlight if this marker was recreated by clustering
+    const hid = highlightState.objectId;
     if (Number.isFinite(hid) && hid === Number(objId) && typeof e.layer.setIcon === 'function') {
       try {
-        e.layer.setIcon(window.__projectSelectedIcon || e.layer.options?.icon);
+        e.layer.setIcon(highlightState.selectedIcon ?? e.layer.options?.icon);
       } catch {}
     }
   }
 });
 
-/* -----------------------------------
-   Related Geometry Layers (Lines/Polygons)
-   Styled via GEOMETRY_STYLES in config.js
------------------------------------ */
 
-// Use style functions (more reliable across redraws)
+
 function lineStyle() {
   return GEOMETRY_STYLES.lines;
 }
@@ -86,18 +75,11 @@ export const polygonsLayer = L.esri.featureLayer({
   style: polygonStyle
 });
 
-/* -----------------------------------
-   Jurisdiction Boundary (GeoJSON)
------------------------------------ */
+
 export let jurisdictionBoundaryLayer = null;
 export let jurisdictionBoundaryReady = null;
 
-/**
- * Loads GeoJSON boundary once and caches both the promise and the layer.
- * @param {string} url
- * @param {object} style Leaflet path style
- * @returns {Promise<L.GeoJSON>}
- */
+
 export function loadJurisdictionBoundary(url, style) {
   if (jurisdictionBoundaryReady) return jurisdictionBoundaryReady;
 
@@ -111,7 +93,6 @@ export function loadJurisdictionBoundary(url, style) {
       return jurisdictionBoundaryLayer;
     })
     .catch((err) => {
-      // allow retry on next call
       jurisdictionBoundaryReady = null;
       jurisdictionBoundaryLayer = null;
       throw err;
@@ -119,4 +100,3 @@ export function loadJurisdictionBoundary(url, style) {
 
   return jurisdictionBoundaryReady;
 }
-
