@@ -1,13 +1,7 @@
 // js/services/projectsService.js
-// Data access layer: cache + fetchById + attachments.
-// No DOM, no sidebar, no routing.
-//
-// Upgrades:
-// - Automatic cache-busting on schema changes (query param _v based on requested fields)
-// - Optional TTL to refresh in-memory cache periodically
-// - Cache load uses f=json + returnGeometry=false (attributes-only)
 
-import { SERVICES, PROJECT_INFO_FIELDS, CACHE_CONFIG } from '../config.js';
+
+import { SERVICES, PROJECT_INFO_FIELDS } from '../config.js';
 import { safeSqlString } from '../ui/format.js';
 
 let _cachePromise = null;
@@ -16,11 +10,7 @@ let _all = [];
 let _byType = new Map();
 let _byId = new Map();
 
-let _cacheLoadedAt = 0;
-
-/* -----------------------------
-   Internal helpers
------------------------------ */
+//internal helpers
 
 function sortFeaturesByName(features) {
   const byName = (a, b) => {
@@ -52,8 +42,8 @@ function buildIndexes(features) {
 }
 
 /**
- * Convert Esri JSON FeatureSet -> GeoJSON-like features your UI expects:
- * { type:'Feature', properties:{...}, geometry:null }
+ * Convert Esri JSON FeatureSet (features[].attributes) into "GeoJSON-like" features
+ * your UI already expects: feature.properties.*
  */
 function normalizeEsriJsonToFeatures(esriJson) {
   const esriFeatures = esriJson?.features || [];
@@ -61,26 +51,9 @@ function normalizeEsriJsonToFeatures(esriJson) {
     .map((f) => ({
       type: 'Feature',
       properties: f?.attributes || {},
-      geometry: null
+      geometry: null // cache doesn't need geometry
     }))
     .filter((f) => f?.properties?.OBJECTID != null);
-}
-
-/**
- * Deterministic "version" string based on requested fields.
- * If you add/remove/rename fields, this changes automatically => busts browser/proxy caches.
- */
-function makeSchemaVersion(fieldKeys) {
-  const keys = Array.isArray(fieldKeys) ? fieldKeys.filter(Boolean) : [];
-  // stable + compact; no crypto needed
-  return keys.join('|');
-}
-
-function shouldRefreshCache() {
-  const ttlMs = Number(CACHE_CONFIG?.ttlMs ?? 0);
-  if (!ttlMs || ttlMs <= 0) return false; // TTL disabled
-  if (!_cacheLoadedAt) return true;
-  return Date.now() - _cacheLoadedAt > ttlMs;
 }
 
 /* -----------------------------
@@ -93,22 +66,20 @@ async function loadCacheViaRestFetch() {
 
   const queryUrl = `${base.replace(/\/+$/, '')}/query`;
 
-  // Attributes-only cache. Keep this aligned with sidebar/detail usage.
-  const fieldKeys = ['OBJECTID', ...PROJECT_INFO_FIELDS.map((f) => f.key)];
-  const outFields = fieldKeys.join(',');
-  const _v = makeSchemaVersion(fieldKeys);
+  // Cache should be attributes-only for reliability & speed.
+  // Do NOT use f=geojson here; it often fails depending on service settings.
+  const outFields = ['OBJECTID', ...PROJECT_INFO_FIELDS.map((f) => f.key)].join(',');
 
   const params = new URLSearchParams({
     where: '1=1',
     outFields,
     returnGeometry: 'false',
-    f: 'json',
-    _v // cache-bust when schema changes
+    f: 'json'
   });
 
   const url = `${queryUrl}?${params.toString()}`;
 
-  const res = await fetch(url, { cache: 'no-store' }); // helps in some browsers/CDNs
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`REST query failed: ${res.status} ${res.statusText}`);
 
   const data = await res.json();
@@ -122,8 +93,6 @@ async function loadCacheViaRestFetch() {
   const feats = normalizeEsriJsonToFeatures(data);
   buildIndexes(feats);
 
-  _cacheLoadedAt = Date.now();
-
   return { all: _all, byType: _byType, byId: _byId };
 }
 
@@ -133,13 +102,10 @@ async function loadCacheViaRestFetch() {
 
 /**
  * Load/cache projects once (list + quick lookup).
- * Auto-refreshes if TTL has elapsed.
  * Returns: { all, byType, byId }
  */
 export function loadProjectsOnce() {
-  const needsRefresh = shouldRefreshCache();
-
-  if (_cachePromise && !needsRefresh) return _cachePromise;
+  if (_cachePromise) return _cachePromise;
 
   _cachePromise = (async () => {
     return await loadCacheViaRestFetch();
@@ -152,17 +118,6 @@ export function loadProjectsOnce() {
   });
 
   return _cachePromise;
-}
-
-/**
- * Manual cache bust (call this after edits if you want instant refresh).
- */
-export function invalidateProjectsCache() {
-  _cachePromise = null;
-  _cacheLoadedAt = 0;
-  _all = [];
-  _byType = new Map();
-  _byId = new Map();
 }
 
 /**
@@ -182,9 +137,9 @@ export function getFeaturesForPane(paneConfig) {
 }
 
 /**
- * Fetch a single project (geometry needed for flyTo/highlight).
- * Attempts GeoJSON first; falls back to Esri JSON.
- * Also uses schema-based _v to bust caches when field lists change.
+ * Fetch a single project as GeoJSON (for map flyTo/highlight on deep links).
+ * NOTE: This still uses f=geojson + returnGeometry=true because you need geometry.
+ * If your service doesn't support geojson, we fall back to f=json and normalize.
  */
 export async function fetchProjectById(
   objectId,
@@ -194,41 +149,38 @@ export async function fetchProjectById(
   if (!base) return null;
 
   const queryUrl = `${base.replace(/\/+$/, '')}/query`;
-  const fieldKeys = ['OBJECTID', ...fields];
-  const outFields = fieldKeys.join(',');
-  const _v = makeSchemaVersion(fieldKeys);
+  const outFields = ['OBJECTID', ...fields].join(',');
 
-  // Attempt 1: GeoJSON
+  // Attempt 1: GeoJSON (best for Leaflet geoJSON helpers)
   try {
     const p1 = new URLSearchParams({
       where: `OBJECTID = ${Number(objectId)}`,
       outFields,
       returnGeometry: 'true',
-      f: 'geojson',
-      _v
+      f: 'geojson'
     });
 
-    const r1 = await fetch(`${queryUrl}?${p1.toString()}`, { cache: 'no-store' });
+    const r1 = await fetch(`${queryUrl}?${p1.toString()}`);
     if (r1.ok) {
       const d1 = await r1.json();
       if (!d1?.error) return d1?.features?.[0] || null;
+      // if d1.error exists, fall through to JSON fallback
     }
   } catch {
     // fall through
   }
 
-  // Attempt 2: Esri JSON fallback
+  // Attempt 2: Esri JSON fallback, normalize geometry to GeoJSON-like
   try {
     const p2 = new URLSearchParams({
       where: `OBJECTID = ${Number(objectId)}`,
       outFields,
       returnGeometry: 'true',
-      outSR: '4326',
-      f: 'json',
-      _v
+      outSR: '4326', // ensures geometry is in WGS84 for easy conversion
+      f: 'json'
     });
 
-    const r2 = await fetch(`${queryUrl}?${p2.toString()}`, { cache: 'no-store' });
+    const r2 = await fetch(`${queryUrl}?${p2.toString()}`);
     if (!r2.ok) return null;
 
     const d2 = await r2.json();
@@ -240,6 +192,10 @@ export async function fetchProjectById(
     const attrs = f0.attributes || {};
     const g = f0.geometry;
 
+    // Convert Esri geometry to GeoJSON geometry (minimal, common cases)
+    // - points: {x,y}
+    // - polylines: {paths}
+    // - polygons: {rings}
     let geometry = null;
 
     if (g && typeof g.x === 'number' && typeof g.y === 'number') {
@@ -260,18 +216,12 @@ export async function fetchProjectById(
   }
 }
 
-/**
- * Build a safe where clause for a project_type value.
- */
 export function buildWhereForProjectType(projectType) {
   if (!projectType) return '1=1';
   const safe = safeSqlString(projectType);
   return `project_type = '${safe}'`;
 }
 
-/**
- * Fetch attachment metadata for a project OBJECTID.
- */
 export async function fetchProjectAttachments(objectId) {
   const base = SERVICES.projectsPoints;
   if (!base) return [];
@@ -283,7 +233,7 @@ export async function fetchProjectAttachments(objectId) {
     returnUrl: 'true'
   });
 
-  const res = await fetch(`${url}?${params.toString()}`, { cache: 'no-store' });
+  const res = await fetch(`${url}?${params.toString()}`);
   if (!res.ok) throw new Error(`queryAttachments failed: ${res.status} ${res.statusText}`);
 
   const data = await res.json();
