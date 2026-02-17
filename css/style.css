@@ -108,7 +108,7 @@ body { margin: 0; padding: 0; }
   padding-top: 8px;
 }
 
-/* --------------------- Back Button --------------------- */
+
 .sidebar-back-button {
   display: inline-block;
   width: auto;
@@ -139,7 +139,7 @@ body { margin: 0; padding: 0; }
   overflow-y: auto;
   max-height: calc(100% - 60px);
   padding-right: 0.5rem;
-  padding-top: 5rem; /* leaves room for Back button */
+  padding-top: 5rem; 
 }
 
 /* --------------------- Project Table Styling --------------------- */
@@ -154,7 +154,7 @@ body { margin: 0; padding: 0; }
   padding: 10px;
   border: 1px solid #ccc;
   text-align: left;
-  font-size: 1rem;
+  font-size: 1.25rem;
 }
 
 .project-table th {
@@ -637,5 +637,6 @@ body { margin: 0; padding: 0; }
   }
 
 }
+
 
 
