@@ -17,17 +17,20 @@ import {
   getSidebarLngOffset
 } from './utils.js';
 
-import { escapeHtml, formatCellValue } from './ui/format.js';
+import { renderDetailTable } from './ui/table.js';
 import { fetchProjectById } from './services/projectsService.js';
 
+// Constants
 
 const MOBILE_BREAKPOINT = 1100; // px — matches utils.js
 
+// Module state
 
 let lastOriginPaneId  = 'home';
 let lastPaneId        = 'home';
 let projectRouteToken = 0;
 
+// Hash helpers
 
 function getHashId() {
   return window.location.hash.replace('#', '');
@@ -46,6 +49,7 @@ function isOriginPaneId(id, cfg) {
   return !!pane && pane.kind !== 'detail';
 }
 
+// Config helpers
 
 function getDetailPane(cfg) {
   return cfg.find((p) => p.kind === 'detail') ?? null;
@@ -55,6 +59,7 @@ function getPaneById(cfg, id) {
   return cfg.find((p) => p.id === id) ?? null;
 }
 
+// fitHomeToBoundary  (sidebar-aware)
 
 async function fitHomeToBoundary(map) {
   try {
@@ -66,7 +71,7 @@ async function fitHomeToBoundary(map) {
   const boundary = jurisdictionBoundaryLayer;
   if (!boundary?.getBounds) return;
 
-
+  // Wait two frames so the sidebar has finished animating before we read its width
   await new Promise((r) => requestAnimationFrame(r));
   await new Promise((r) => requestAnimationFrame(r));
 
@@ -108,7 +113,12 @@ async function fitHomeToBoundary(map) {
   map.flyToBounds(bounds, flyOpts);
 }
 
+// flyToMarkerFast  (sidebar-aware)
 
+// Flies/pans to a marker, offsetting the destination longitude so the marker
+// lands in the visible portion of the map rather than under the sidebar.
+// Uses getSidebarLngOffset() from utils.js with the *target* zoom so the
+// offset is accurate even when the map is about to change zoom levels.
 function flyToMarkerFast(map, marker, zoom = 18) {
   if (!map || !marker || typeof marker.getLatLng !== 'function') return;
 
@@ -117,7 +127,8 @@ function flyToMarkerFast(map, marker, zoom = 18) {
   const target = L.latLng(ll.lat, ll.lng - offset);
 
   try {
-
+    // If the raw (non-adjusted) point is already well inside the viewport,
+    // a gentle pan is enough; otherwise do a full fly.
     if (map.getBounds().pad(-0.2).contains(ll)) {
       map.panTo(target, { animate: true, duration: 0.22 });
     } else {
@@ -146,10 +157,10 @@ function flyToMarkerFast(map, marker, zoom = 18) {
   }
 }
 
+// waitForMarker
 
-
-
-
+// Resolves with the Leaflet marker for objectId once it appears in
+// markerLookup, or null after timeoutMs if it never arrives.
 function waitForMarker(objectId, timeoutMs = 1400) {
   const id = Number(objectId);
 
@@ -186,9 +197,7 @@ function waitForMarker(objectId, timeoutMs = 1400) {
   });
 }
 
-
 // getObjectIdFromEsriClick
-
 
 function getObjectIdFromEsriClick(e) {
   const id =
@@ -207,29 +216,7 @@ function fillDetailTableFromFeature(detailPane, feature) {
   if (!tableId || !Array.isArray(fields)) return;
 
   const tbody = document.querySelector(`#${tableId} tbody`);
-  if (!tbody) return;
-
-  const props    = feature?.properties ?? {};
-  const objectId = props.OBJECTID;
-
-  const table = tbody.closest('table');
-  if (table?.dataset?.objectid && String(table.dataset.objectid) === String(objectId)) return;
-  if (table) table.dataset.objectid = String(objectId ?? '');
-
-  tbody.innerHTML = '';
-
-  for (const { key, label } of fields) {
-    const val = props?.[key];
-    if (val == null || String(val).trim() === '') continue;
-
-    const row = document.createElement('tr');
-    row.innerHTML = `<td>${escapeHtml(label ?? key)}</td><td>${formatCellValue(val)}</td>`;
-    tbody.appendChild(row);
-  }
-
-  if (!tbody.children.length) {
-    tbody.innerHTML = `<tr><td colspan="2">No details available.</td></tr>`;
-  }
+  renderDetailTable(tbody, feature, fields);
 }
 
 function clearDetailAttachments(detailPane) {
@@ -263,7 +250,6 @@ function setBackButtonTarget(detailPane) {
     window.location.hash = `#${lastOriginPaneId}`;
   };
 }
-
 
 // handleProjectHash
 
@@ -330,7 +316,6 @@ async function handleProjectHash(map, sidebar, cfg) {
   });
 }
 
-
 // handlePaneHash
 
 function handlePaneHash(map, sidebar, paneId, cfg) {
@@ -364,7 +349,6 @@ function handlePaneHash(map, sidebar, paneId, cfg) {
 
   if (resolvedPane.id === 'home') fitHomeToBoundary(map);
 }
-
 
 // Public API
 
