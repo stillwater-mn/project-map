@@ -158,29 +158,27 @@ function flyToMarkerFast(map, marker, zoom = 17) {
 }
 
 // waitForMarker
-
+//
 // Resolves with the Leaflet marker for objectId once it appears in
 // markerLookup, or null after timeoutMs if it never arrives.
+//
+// Relies purely on the layer's 'createfeature' and 'load' events rather than
+// a polling loop — no repeated setTimeout ticks needed. A single setTimeout
+// acts as the outer deadline so we never hang indefinitely.
 function waitForMarker(objectId, timeoutMs = 1400) {
   const id = Number(objectId);
 
   return new Promise((resolve) => {
+    // Fast path: marker already exists
     const existing = markerLookup[id];
     if (existing) return resolve(existing);
 
-    const start = Date.now();
-
-    const onCreate = () => { const lyr = markerLookup[id]; if (lyr) cleanup(lyr); };
-    const onLoad   = () => { const lyr = markerLookup[id]; if (lyr) cleanup(lyr); };
-
-    const tick = () => {
-      const lyr = markerLookup[id];
-      if (lyr)                           return cleanup(lyr);
-      if (Date.now() - start > timeoutMs) return cleanup(null);
-      setTimeout(tick, 70);
-    };
+    let settled = false;
 
     const cleanup = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
       try {
         projectsLayer?.off?.('createfeature', onCreate);
         projectsLayer?.off?.('load', onLoad);
@@ -188,12 +186,26 @@ function waitForMarker(objectId, timeoutMs = 1400) {
       resolve(result);
     };
 
+    // Fired each time the cluster layer creates an individual feature marker
+    const onCreate = () => {
+      const lyr = markerLookup[id];
+      if (lyr) cleanup(lyr);
+    };
+
+    // Fired when a full tile/page of features has loaded — check again in case
+    // the feature arrived in a batch without a per-feature createfeature event
+    const onLoad = () => {
+      const lyr = markerLookup[id];
+      cleanup(lyr ?? null);
+    };
+
+    // Hard deadline: give up and resolve with null so callers never hang
+    const deadline = setTimeout(() => cleanup(null), timeoutMs);
+
     try {
       projectsLayer?.on?.('createfeature', onCreate);
       projectsLayer?.on?.('load', onLoad);
     } catch {}
-
-    tick();
   });
 }
 
@@ -382,7 +394,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     }
 
     // Clicking the same project again while already on its detail pane:
-    // re-open and re-fly without relying on a hashchange event (hash didn't change)
+    // re-open and re-fly without relying on a hashchange event 
     if (current === next) {
       projectRouteToken++;
 
@@ -403,7 +415,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
     window.location.hash = next;
   });
 
-  // Central route handler — called on page load and every hashchange
+  // Central route handler 
   const route = () => {
     const h = getHashId();
 
@@ -431,4 +443,3 @@ export function setLastOriginPane(paneId) {
     lastPaneId       = paneId;
   }
 }
-
