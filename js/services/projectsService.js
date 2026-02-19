@@ -79,7 +79,9 @@ async function loadCacheViaRestFetch() {
 
   const url = `${queryUrl}?${params.toString()}`;
 
-  const res = await fetch(url);
+  // 'no-store' prevents the browser from serving a stale HTTP-cached response
+  // after our JS-level cache has expired (which would defeat the 5-min refresh).
+  const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`REST query failed: ${res.status} ${res.statusText}`);
 
   const data = await res.json();
@@ -101,18 +103,25 @@ async function loadCacheViaRestFetch() {
 ----------------------------- */
 
 /**
- * Load/cache projects once (list + quick lookup).
+ * Always fetches fresh data from the service.
+ * Use this wherever you need the list to reflect the current state of the
+ * hosted feature layer view (e.g. the sidebar list on pane open).
+ * Returns: { all, byType, byId }
+ */
+export async function loadProjectsFresh() {
+  return await loadCacheViaRestFetch();
+}
+
+/**
+ * Fetches once per page load and caches the result.
+ * Use this only for fast-path operations where slightly stale data is
+ * acceptable (e.g. pre-filling the detail table from cache on row click).
  * Returns: { all, byType, byId }
  */
 export function loadProjectsOnce() {
   if (_cachePromise) return _cachePromise;
 
-  _cachePromise = (async () => {
-    return await loadCacheViaRestFetch();
-  })();
-
-  // If it fails, allow retries later
-  _cachePromise = _cachePromise.catch((err) => {
+  _cachePromise = loadCacheViaRestFetch().catch((err) => {
     _cachePromise = null;
     throw err;
   });
