@@ -12,7 +12,7 @@ import {
 import { setLastOriginPane } from './router.js';
 import { escapeHtml, formatCellValue, esriErrorToString } from './ui/format.js';
 import { renderDetailTable } from './ui/table.js';
-import { loadProjectsOnce, getFeaturesForPane, getCachedById } from './services/projectsService.js';
+import { loadProjectsOnce, loadProjectsFresh, getFeaturesForPane, getCachedById } from './services/projectsService.js';
 
 // DOM builders
 
@@ -82,11 +82,6 @@ function renderListRows(tbody, features, columns) {
   tbody.appendChild(frag);
 }
 
-// Detail open — fast path from list click
-//
-// Fills the table immediately from cache so the UI feels instant, then sets
-// the hash. The router takes over from there (flyTo, related features, etc.)
-// — no duplication of that logic here.
 
 function openDetailInstant({ sidebar, map, originPaneId, objectId, detailPaneConfig }) {
   setLastOriginPane(originPaneId);
@@ -117,7 +112,6 @@ function openDetailInstant({ sidebar, map, originPaneId, objectId, detailPaneCon
   window.location.hash = `project-${objectId}`;
 }
 
-// List click delegation
 
 function wireListClickDelegation({ tableId, sidebar, map, originPaneId, rowRoute, detailPaneConfig }) {
   const tbody = document.querySelector(`#${tableId} tbody`);
@@ -213,27 +207,10 @@ export function buildSidebar(map, config) {
     }
   });
 
-  // Single loadProjectsOnce chain: preload cache, then wire clicks
-  loadProjectsOnce()
-    .then(() => {
-      for (const pane of config) {
-        if (pane.kind !== 'list') continue;
-        const tableId = pane?.list?.tableId;
-        if (!tableId) continue;
 
-        wireListClickDelegation({
-          tableId,
-          sidebar,
-          map,
-          originPaneId:     pane.id,
-          rowRoute:         pane?.list?.rowRoute,
-          detailPaneConfig
-        });
-      }
-    })
-    .catch((err) => {
-      console.error('Failed to load project cache:', esriErrorToString(err), err);
-    });
+  loadProjectsOnce().catch((err) => {
+    console.warn('Startup project cache preload failed (will retry on pane open):', esriErrorToString(err));
+  });
 
   // Render list panes on open
   sidebar.on('content', (e) => {
@@ -248,15 +225,26 @@ export function buildSidebar(map, config) {
     const tbody   = tableId ? document.querySelector(`#${tableId} tbody`) : null;
     if (!tbody) return;
 
-    showTableMessage(tbody, 'Loading…');
 
-    loadProjectsOnce()
+    const alreadyPopulated = tbody.querySelector('tr[data-objectid]');
+    if (!alreadyPopulated) showTableMessage(tbody, 'Loading…');
+
+
+    loadProjectsFresh()
       .then(() => {
         renderListRows(tbody, getFeaturesForPane(pane.list), columns);
+        wireListClickDelegation({
+          tableId,
+          sidebar,
+          map,
+          originPaneId:     pane.id,
+          rowRoute:         pane?.list?.rowRoute,
+          detailPaneConfig
+        });
       })
       .catch((err) => {
         console.error('Failed to render pane table:', esriErrorToString(err), err);
-        showTableMessage(tbody, 'Failed to load projects');
+        showTableMessage(tbody, 'Failed to load projects. Please try again.');
       });
   });
 
