@@ -20,7 +20,6 @@ export function renderDetailTable(tbody, feature, fields) {
   const objectId = props.OBJECTID;
 
   const table = tbody.closest('table');
-  if (table?.dataset?.objectid && String(table.dataset.objectid) === String(objectId)) return;
   if (table) table.dataset.objectid = String(objectId ?? '');
 
   tbody.innerHTML = '';
