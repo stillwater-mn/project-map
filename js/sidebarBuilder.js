@@ -226,9 +226,7 @@ export function buildSidebar(map, config) {
     if (!tbody) return;
 
 
-    const alreadyPopulated = tbody.querySelector('tr[data-objectid]');
-    if (!alreadyPopulated) showTableMessage(tbody, 'Loading…');
-
+    showTableMessage(tbody, 'Loading…');
 
     loadProjectsFresh()
       .then(() => {
