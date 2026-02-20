@@ -1,6 +1,6 @@
 // js/config.js
 
-export const APP_VERSION = '2026-02-19.4';
+export const APP_VERSION = '2026-02-20.1';
 
 
 
@@ -17,8 +17,8 @@ export const SERVICES = Object.freeze({
 });
 
 export const MAP_CONFIG = Object.freeze({
-  center: [45.0566, -92.8085],
-  zoom: 12,
+  center: [45.05718292465032, -92.83309936523439],
+  zoom: 13,
   scrollWheelZoom: true,
   zoomControl: false
 });
@@ -84,6 +84,7 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
+
 
 
 
