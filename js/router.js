@@ -29,6 +29,7 @@ const MOBILE_BREAKPOINT = 1100; // px — matches utils.js
 let lastOriginPaneId  = 'home';
 let lastPaneId        = 'home';
 let projectRouteToken = 0;
+let isInitialLoad     = true;
 
 // Hash helpers
 
@@ -359,7 +360,7 @@ function handlePaneHash(map, sidebar, paneId, cfg) {
     clearDetailAttachments(detailPane);
   }
 
-  if (resolvedPane.id === 'home') fitHomeToBoundary(map);
+  if (resolvedPane.id === 'home' || isInitialLoad) fitHomeToBoundary(map);
 }
 
 // Public API
@@ -434,6 +435,7 @@ export function setupSidebarRouting(sidebar, map, sidebarConfig) {
   };
 
   route();
+  isInitialLoad = false;
   window.addEventListener('hashchange', route);
 }
 
