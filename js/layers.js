@@ -6,15 +6,12 @@ import { highlightState } from './utils.js';
 
 export const cartoLayer = L.tileLayer(BASEMAPS.carto.url, BASEMAPS.carto.options);
 
-const satelliteBase = L.esri.tiledMapLayer({
+export const satelliteLayer = L.esri.tiledMapLayer({
   url: BASEMAPS.satellite.url,
   ...BASEMAPS.satellite.options
 });
-const satelliteLabels = L.tileLayer(
-  BASEMAPS.satellite.overlay.url,
-  BASEMAPS.satellite.overlay.options
-);
-export const satelliteLayer = L.layerGroup([satelliteBase, satelliteLabels]);
+// Expose _url for L.basemapControl preview compatibility
+satelliteLayer._url = BASEMAPS.satellite.url + '/tile/{z}/{y}/{x}';
 
 
 export const markerLookup = Object.create(null);
