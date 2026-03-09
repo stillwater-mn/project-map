@@ -5,7 +5,10 @@ import { SERVICES, BASEMAPS, GEOMETRY_STYLES, PROJECT_INFO_FIELDS } from './conf
 import { highlightState } from './utils.js';
 
 export const cartoLayer = L.tileLayer(BASEMAPS.carto.url, BASEMAPS.carto.options);
-export const satelliteLayer = L.tileLayer(BASEMAPS.satellite.url, BASEMAPS.satellite.options);
+export const satelliteLayer = L.esri.tiledMapLayer({
+  url: BASEMAPS.satellite.url,
+  ...BASEMAPS.satellite.options
+});
 
 
 export const markerLookup = Object.create(null);
