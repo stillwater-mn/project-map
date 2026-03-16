@@ -296,7 +296,10 @@ export function resetTableHighlights() {
   clearHighlightedMarker();
   relatedRequestToken++;
   resetRelatedFeatures();
-  resetProjectFilter();
+  // Note: resetProjectFilter() is intentionally NOT called here.
+  // The layer filter (OBJECTID = X vs 1=1) is a navigation concern owned
+  // by router.js. Calling it here was causing the layer to briefly show
+  // all points mid-navigation whenever highlights were cleared.
 }
 
 
