@@ -85,7 +85,9 @@ function renderListRows(tbody, features, columns) {
 
 function openDetailInstant({ sidebar, map, originPaneId, objectId, detailPaneConfig }) {
   setLastOriginPane(originPaneId);
-  resetTableHighlights();
+  // Note: resetTableHighlights() intentionally removed here.
+  // It called resetProjectFilter() which flashed all points before the
+  // router could apply OBJECTID = X. The router handles cleanup on navigation.
   sidebar.open(detailPaneConfig.id);
 
   // Attachments
