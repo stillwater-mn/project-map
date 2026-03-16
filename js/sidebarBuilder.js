@@ -20,13 +20,13 @@ function paneHeaderHTML(title) {
   return `
     <h1 class="leaflet-sidebar-header">
       ${escapeHtml(title)}
-      <span class="leaflet-sidebar-close"><i class="fa fa-caret-left"></i></span>
+      <span class="leaflet-sidebar-close"><svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     </h1>
   `;
 }
 
 function backButtonHTML() {
-  return `<a href="#home" class="sidebar-back-button sidebar-pane-link">← Back</a>`;
+  return `<button type="button" class="sidebar-back-button" aria-label="Go back" data-back-target="home"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Back</button>`;
 }
 
 function buildListTableHTML({ tableId, columns }) {
@@ -153,7 +153,9 @@ export function buildSidebar(map, config) {
   // Build panes
   for (const pane of config) {
     const tabContent =
-      pane.id === 'home' ? `<i class="fa ${pane.tabIcon}"></i>` : `<i style="display:none"></i>`;
+      pane.id === 'home'
+        ? `<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="14" height="1.8" rx="0.9" fill="currentColor"/><rect x="2" y="8.1" width="14" height="1.8" rx="0.9" fill="currentColor"/><rect x="2" y="12.2" width="14" height="1.8" rx="0.9" fill="currentColor"/></svg>`
+        : `<i style="display:none"></i>`;
 
     const paneDiv = document.createElement('div');
     paneDiv.id        = pane.id;
@@ -162,7 +164,7 @@ export function buildSidebar(map, config) {
     let bodyHTML = pane.content || '';
 
     if (pane.kind !== 'home') {
-      let inner = backButtonHTML();
+      let inner = '';
 
       if (pane.kind === 'list') {
         inner += `<div style="margin-top:1rem;">${buildListTableHTML(pane.list)}</div>`;
@@ -176,7 +178,7 @@ export function buildSidebar(map, config) {
         `;
       }
 
-      bodyHTML = `<div class="pane-body">${inner}</div>`;
+      bodyHTML = `<div class="pane-back-header">${backButtonHTML()}</div><div class="pane-body">${inner}</div>`;
     }
 
     paneDiv.innerHTML = paneHeaderHTML(pane.title) + bodyHTML;
@@ -190,9 +192,13 @@ export function buildSidebar(map, config) {
     });
   }
 
-  // Back buttons reset highlights
-  document.querySelectorAll('.sidebar-back-button').forEach((btn) => {
-    btn.addEventListener('click', () => resetTableHighlights());
+  // Back button — delegated click handler, reads data-back-target set by router
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.sidebar-back-button');
+    if (!btn) return;
+    const target = btn.dataset.backTarget ?? 'home';
+    resetTableHighlights();
+    window.location.hash = target;
   });
 
   // Mark the home tab for CSS targeting
