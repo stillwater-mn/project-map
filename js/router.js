@@ -323,6 +323,7 @@ async function handleProjectHash(map, sidebar, cfg) {
   setBackButtonTarget(detailPane);
   startDetailAttachments(detailPane, objectId);
 
+  // Apply the filter immediately — only this project's marker should show
   if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
 
   const markerPromise = waitForMarker(objectId);
@@ -339,7 +340,12 @@ async function handleProjectHash(map, sidebar, cfg) {
       : [];
 
     featNow = await fetchProjectById(objectId, fields);
+
+    // Token check after every await — a navigation away may have occurred
     if (myToken !== projectRouteToken) return;
+
+    // Re-apply filter in case anything reset it while the fetch was in-flight
+    if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
 
     if (featNow) {
       fillDetailTableFromFeature(detailPane, featNow);
@@ -356,6 +362,10 @@ async function handleProjectHash(map, sidebar, cfg) {
   markerPromise.then((marker) => {
     if (myToken !== projectRouteToken) return;
     if (!marker) return;
+
+    // Re-apply filter once more — the cluster may have triggered a layer
+    // refresh that reset the where clause
+    if (projectsLayer?.setWhere) projectsLayer.setWhere(`OBJECTID = ${objectId}`);
 
     flyToMarkerFast(map, marker);
 
