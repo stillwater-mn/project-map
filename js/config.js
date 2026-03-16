@@ -68,6 +68,65 @@ export const GEOMETRY_STYLES = Object.freeze({
   })
 });
 
+// ---------------------------------------------------------------------------
+// UI / navigation constants
+//
+// All magic numbers that were previously scattered across router.js and
+// utils.js live here so they can be tuned in one place.
+// ---------------------------------------------------------------------------
+
+export const UI_CONFIG = Object.freeze({
+  // Viewport width (px) below which the sidebar collapses to a bottom-sheet
+  // and sidebar-offset longitude calculations are skipped.
+  mobileBreakpoint: 1100,
+
+  // Default zoom level used when flying to a point feature or marker.
+  featureZoom: 17,
+
+  // Extra horizontal padding (px) added to the sidebar width when computing
+  // the longitude offset for sidebar-aware fly operations.
+  sidebarLngPad: 180,
+
+  // Padding applied to fitBounds calls (related geometry, home boundary).
+  fitBoundsPadding: [20, 20],
+
+  // Maximum time (ms) to wait for a cluster marker to appear before giving up.
+  markerWaitTimeoutMs: 1400,
+
+  // Fly-to-bounds animation (home boundary, fitHomeToBoundary)
+  flyBounds: Object.freeze({
+    duration:      1.2,
+    easeLinearity: 0.12
+  }),
+
+  // Full fly animation (flyToMarkerFast — new pane / far marker)
+  flyFull: Object.freeze({
+    duration:      0.45,
+    easeLinearity: 0.3
+  }),
+
+  // Gentle pan animation (flyToMarkerFast — marker already near viewport)
+  panNear: Object.freeze({
+    duration: 0.22
+  }),
+
+  // Re-centre pan after cluster unspider
+  panRecentre: Object.freeze({
+    duration: 0.2
+  }),
+
+  // Fraction of the viewport to pad inward when deciding "is the marker
+  // already close enough for a gentle pan vs a full fly?"
+  nearViewportPad: 0.2
+});
+
+// Splash / welcome modal
+export const SPLASH_CONFIG = Object.freeze({
+  // localStorage key — bump the suffix when you want all users to see the
+  // splash again (e.g. after a major update).
+  storageKey: 'stillwater_splash_v2'
+});
+
 // Only these fields appear in Project Info.
 export const PROJECT_INFO_FIELDS = Object.freeze([
   { key: 'project_name', label: 'Project Name' },
@@ -89,23 +148,3 @@ export const BOUNDARY = Object.freeze({
     fillOpacity: 0
   })
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
