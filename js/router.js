@@ -19,10 +19,7 @@ import {
 
 import { renderDetailTable } from './ui/table.js';
 import { fetchProjectById } from './services/projectsService.js';
-
-// Constants
-
-const MOBILE_BREAKPOINT = 1100; // px — matches utils.js
+import { UI_CONFIG } from './config.js';
 
 // Module state
 
@@ -80,13 +77,13 @@ async function fitHomeToBoundary(map) {
   if (!bounds?.isValid?.()) return;
 
   const flyOpts = {
-    padding:       [20, 20],
-    duration:      1.2,
-    easeLinearity: 0.12,
+    padding:       UI_CONFIG.fitBoundsPadding,
+    duration:      UI_CONFIG.flyBounds.duration,
+    easeLinearity: UI_CONFIG.flyBounds.easeLinearity,
     noMoveStart:   true
   };
 
-  if (window.innerWidth > MOBILE_BREAKPOINT) {
+  if (window.innerWidth > UI_CONFIG.mobileBreakpoint) {
     const sidebarEl    = document.getElementById('sidebar');
     const sidebarWidth = sidebarEl?.getBoundingClientRect().width ?? 0;
 
@@ -98,7 +95,7 @@ async function fitHomeToBoundary(map) {
 
       // Shift the entire bounding box left so its visual centre lands in the
       // open portion of the map (right of the sidebar).
-      const lngShift = ((sidebarWidth + 180) / mapWidth) * lngSpan;
+      const lngShift = ((sidebarWidth + UI_CONFIG.sidebarLngPad) / mapWidth) * lngSpan;
 
       map.flyToBounds(
         L.latLngBounds(
@@ -120,7 +117,7 @@ async function fitHomeToBoundary(map) {
 // lands in the visible portion of the map rather than under the sidebar.
 // Uses getSidebarLngOffset() from utils.js with the *target* zoom so the
 // offset is accurate even when the map is about to change zoom levels.
-function flyToMarkerFast(map, marker, zoom = 17) {
+function flyToMarkerFast(map, marker, zoom = UI_CONFIG.featureZoom) {
   if (!map || !marker || typeof marker.getLatLng !== 'function') return;
 
   const ll     = marker.getLatLng();
@@ -130,13 +127,13 @@ function flyToMarkerFast(map, marker, zoom = 17) {
   try {
     // If the raw (non-adjusted) point is already well inside the viewport,
     // a gentle pan is enough; otherwise do a full fly.
-    if (map.getBounds().pad(-0.2).contains(ll)) {
-      map.panTo(target, { animate: true, duration: 0.22 });
+    if (map.getBounds().pad(-UI_CONFIG.nearViewportPad).contains(ll)) {
+      map.panTo(target, { animate: true, duration: UI_CONFIG.panNear.duration });
     } else {
-      map.flyTo(target, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+      map.flyTo(target, zoom, { animate: true, duration: UI_CONFIG.flyFull.duration, easeLinearity: UI_CONFIG.flyFull.easeLinearity });
     }
   } catch {
-    map.flyTo(target, zoom, { animate: true, duration: 0.45, easeLinearity: 0.3 });
+    map.flyTo(target, zoom, { animate: true, duration: UI_CONFIG.flyFull.duration, easeLinearity: UI_CONFIG.flyFull.easeLinearity });
   }
 
   // Unspider/uncollapse the cluster so the individual marker becomes visible
@@ -151,7 +148,7 @@ function flyToMarkerFast(map, marker, zoom = 17) {
         // Re-apply offset after the cluster animation settles
         map.panTo(L.latLng(ll.lat, ll.lng - getSidebarLngOffset(map, map.getZoom())), {
           animate: true,
-          duration: 0.2
+          duration: UI_CONFIG.panRecentre.duration
         });
       } catch {}
     });
@@ -166,7 +163,7 @@ function flyToMarkerFast(map, marker, zoom = 17) {
 // Relies purely on the layer's 'createfeature' and 'load' events rather than
 // a polling loop — no repeated setTimeout ticks needed. A single setTimeout
 // acts as the outer deadline so we never hang indefinitely.
-function waitForMarker(objectId, timeoutMs = 1400) {
+function waitForMarker(objectId, timeoutMs = UI_CONFIG.markerWaitTimeoutMs) {
   const id = Number(objectId);
 
   return new Promise((resolve) => {
@@ -252,16 +249,60 @@ function startDetailAttachments(detailPane, objectId) {
   renderProjectAttachments(objectId);
 }
 
+// ---------------------------------------------------------------------------
+// Back button scroll-lift
+//
+// .pane-back-header is position:sticky directly inside .leaflet-sidebar-pane
+// (which is a direct child of .leaflet-sidebar-content, the scroll root).
+// This mirrors the W3Schools sticky pattern — no overflow between the sticky
+// element and the scroll container, so it actually pins.
+//
+// wireBackHeaderObserver() plants a 1px sentinel immediately after the header.
+// An IntersectionObserver watches it against the scroll root — the moment it
+// leaves view, content is scrolling under the header and the blur class fires.
+// ---------------------------------------------------------------------------
+
+const _scrollObservers = new Map(); // paneId → { observer, sentinel }
+
+function teardownScrollObserver(paneId) {
+  const entry = _scrollObservers.get(paneId);
+  if (!entry) return;
+  entry.observer.disconnect();
+  entry.sentinel.remove();
+  _scrollObservers.delete(paneId);
+}
+
+function wireBackHeaderObserver(paneId) {
+  const header = document.querySelector(`#${paneId} .pane-back-header`);
+  if (!header) return;
+
+  header.classList.remove('pane-back-header--scrolled');
+  teardownScrollObserver(paneId);
+
+  const scrollRoot = header.closest('.leaflet-sidebar-content');
+  if (!scrollRoot) return;
+
+  const sentinel = document.createElement('div');
+  sentinel.setAttribute('aria-hidden', 'true');
+  sentinel.style.cssText = 'height:1px;width:100%;pointer-events:none;';
+  header.insertAdjacentElement('afterend', sentinel);
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      header.classList.toggle('pane-back-header--scrolled', !entry.isIntersecting);
+    },
+    { root: scrollRoot, threshold: 0 }
+  );
+
+  observer.observe(sentinel);
+  _scrollObservers.set(paneId, { observer, sentinel });
+}
+
 function setBackButtonTarget(detailPane) {
   const btn = document.querySelector(`#${detailPane.id} .sidebar-back-button`);
   if (!btn) return;
-
-  btn.href    = `#${lastOriginPaneId}`;
-  btn.onclick = (e) => {
-    e.preventDefault();
-    resetTableHighlights();
-    window.location.hash = `#${lastOriginPaneId}`;
-  };
+  btn.dataset.backTarget = lastOriginPaneId;
+  wireBackHeaderObserver(detailPane.id);
 }
 
 // handleProjectHash
@@ -345,6 +386,11 @@ function handlePaneHash(map, sidebar, paneId, cfg) {
   if (isOriginPaneId(resolvedPane.id, cfg)) {
     lastOriginPaneId = resolvedPane.id;
     lastPaneId       = resolvedPane.id;
+  }
+
+  // Wire scroll observer for any non-home pane that has a back header
+  if (resolvedPane.kind !== 'home') {
+    wireBackHeaderObserver(resolvedPane.id);
   }
 
   if (resolvedPane.where && projectsLayer?.setWhere) {
