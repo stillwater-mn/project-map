@@ -1,5 +1,7 @@
 // js/splash.js
-const KEY = 'stillwater_splash_v2';
+import { SPLASH_CONFIG } from './config.js';
+
+const KEY = SPLASH_CONFIG.storageKey;
 
 function $(sel) {
   return document.querySelector(sel);
