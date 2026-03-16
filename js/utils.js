@@ -2,6 +2,7 @@
 import { linesLayer, polygonsLayer, projectsLayer, markerLookup } from './layers.js';
 import { safeSqlString, escapeHtml } from './ui/format.js';
 import { fetchProjectAttachments as fetchAttachmentsFromService } from './services/projectsService.js';
+import { UI_CONFIG } from './config.js';
 
 
 export const highlightState = {
@@ -40,11 +41,10 @@ highlightState.defaultIcon  = defaultBlueIcon;
 // Sidebar-aware centering
 
 
-const MOBILE_BREAKPOINT = 1100; // px — matches router.js
 
 
 export function getSidebarLngOffset(map, targetZoom) {
-  if (!map || window.innerWidth <= MOBILE_BREAKPOINT) return 0;
+  if (!map || window.innerWidth <= UI_CONFIG.mobileBreakpoint) return 0;
 
   const sidebarEl    = document.getElementById('sidebar');
   const sidebarWidth = sidebarEl?.getBoundingClientRect().width ?? 0;
@@ -168,7 +168,7 @@ function clearHighlightedMarker() {
 // flyToFeature 
 
 
-export async function flyToFeature(map, feature, zoom = 17) {
+export async function flyToFeature(map, feature, zoom = UI_CONFIG.featureZoom) {
   if (!map || !feature) return;
 
   const objectId = feature?.properties?.OBJECTID;
@@ -212,7 +212,7 @@ export async function flyToFeature(map, feature, zoom = 17) {
     const layer  = L.geoJSON(feature);
     const bounds = layer.getBounds();
     if (bounds?.isValid()) {
-      map.fitBounds(bounds, { animate: true, padding: [20, 20] });
+      map.fitBounds(bounds, { animate: true, padding: UI_CONFIG.fitBoundsPadding });
     }
   }
 }
@@ -278,7 +278,7 @@ export async function showRelatedFeatures(projectName, map, { fit = true } = {})
   else if (lineFeatures.length) bounds = L.geoJSON(lineFeatures).getBounds();
 
   if (bounds?.isValid()) {
-    map.fitBounds(bounds, { animate: true, padding: [20, 20] });
+    map.fitBounds(bounds, { animate: true, padding: UI_CONFIG.fitBoundsPadding });
   }
 }
 
@@ -589,4 +589,3 @@ export async function renderProjectAttachments(objectId, title = 'Attachments') 
     `;
   }
 }
-
